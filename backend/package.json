@@ -1,0 +1,23 @@
+{
+  "name": "investment-tracker-backend",
+  "version": "1.0.0",
+  "description": "Investment Ledger & Tax Manager API — with Smart-DCA rebalance/action-signal engine ported from https://github.com/Jupiter4428/Smart-DCA",
+  "type": "commonjs",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/seed.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "yahoo-finance2": "^4.0.0"
+  }
+}

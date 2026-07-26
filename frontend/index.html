@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ระบบบันทึกการลงทุน & จัดการภาษี</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon">💹</div>
+      <h1>ระบบบันทึกการลงทุน</h1>
+      <p>Investment Ledger & Tax Manager</p>
+    </div>
+    <div id="loginError" class="login-error"></div>
+    <div class="form-group">
+      <label class="form-label">ชื่อผู้ใช้</label>
+      <input type="text" id="lUser" class="form-control" placeholder="ชื่อผู้ใช้" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">รหัสผ่าน</label>
+      <input type="password" id="lPass" class="form-control" placeholder="รหัสผ่าน" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <button class="btn btn-primary btn-full btn-lg" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <p class="login-hint">ผู้ใช้เริ่มต้น (เปลี่ยนรหัสผ่านทันทีหลังติดตั้ง): admin / admin1234</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+ <div class="app-layout">
+  <nav id="sidebar">
+   <div class="sb-header">
+    <div class="sb-brand">
+     <div class="icon">💹</div>
+     <div><div class="name" id="sbCo">พอร์ตการลงทุน</div><div class="sub">Investment Tracker</div></div>
+    </div>
+   </div>
+   <div class="sb-user">
+    <div class="row">
+     <div class="u-avatar" id="sbAv">A</div>
+     <div><div class="u-name" id="sbName">Admin</div><div class="u-role" id="sbRole">เจ้าของ</div></div>
+    </div>
+   </div>
+   <div class="sb-nav">
+    <div class="nav-sec">เมนูหลัก</div>
+    <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')"><span class="ni">🏠</span>ภาพรวม</div>
+    <div class="nav-item" data-page="new-tx" onclick="navigate('new-tx')"><span class="ni">📝</span>บันทึกธุรกรรม</div>
+    <div class="nav-item" data-page="transactions" onclick="navigate('transactions')"><span class="ni">📋</span>รายการธุรกรรม</div>
+    <div class="nav-item" data-page="holdings" onclick="navigate('holdings')"><span class="ni">📊</span>พอร์ตการลงทุน</div>
+    <div class="nav-item" data-page="dcaplan" onclick="navigate('dcaplan')"><span class="ni">🎯</span>แผน DCA & Rebalance</div>
+    <div class="nav-item" data-page="tax" onclick="navigate('tax')"><span class="ni">🧾</span>จัดการภาษี</div>
+    <div class="nav-sec owner-only">ผู้ดูแล</div>
+    <div class="nav-item owner-only" data-page="users" onclick="navigate('users')"><span class="ni">👥</span>จัดการผู้ใช้</div>
+    <div class="nav-item owner-only" data-page="settings" onclick="navigate('settings')"><span class="ni">⚙️</span>ตั้งค่า/อัตราภาษี</div>
+   </div>
+   <div class="sb-footer"><button class="btn btn-secondary btn-full btn-sm" onclick="doLogout()">🚪 ออกจากระบบ</button></div>
+  </nav>
+
+  <main id="mainContent">
+
+   <!-- DASHBOARD -->
+   <div id="page-dashboard" class="pg-section" style="display:none">
+    <div class="pg-header">
+     <div><div class="pg-title">🏠 ภาพรวมพอร์ต</div><div class="pg-sub" id="dashDate">—</div></div>
+     <div style="display:flex;gap:8px">
+      <button class="btn btn-outline" id="btnCaptureSnap" onclick="captureSnapshot()">📸 บันทึกมูลค่าพอร์ตวันนี้</button>
+      <button class="btn btn-primary" onclick="navigate('new-tx')">+ บันทึกธุรกรรม</button>
+     </div>
+    </div>
+    <div class="pg-body">
+     <div id="dashError"></div>
+     <div style="display:grid;grid-template-columns:1.6fr .9fr;gap:18px;align-items:stretch">
+      <div class="card">
+       <div class="card-title">มูลค่าพอร์ตย้อนหลัง</div>
+       <div id="dashChartWrap" style="position:relative;height:300px"><canvas id="dashChart"></canvas></div>
+       <div id="dashChartEmpty" style="display:none" class="empty-state"><div class="empty-icon">📈</div><p>ยังไม่มีข้อมูลย้อนหลังพอ กดปุ่ม "บันทึกมูลค่าพอร์ตวันนี้" เพื่อเริ่มเก็บข้อมูล (ต้องมีอย่างน้อย 2 จุดกราฟถึงจะขึ้น)</p></div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;justify-content:center;gap:14px" id="dashStatsPanel"></div>
+     </div>
+     <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start">
+      <div class="card">
+       <div class="card-hdr"><span class="card-title">ธุรกรรมล่าสุด</span><button class="btn btn-outline btn-sm" onclick="navigate('transactions')">ดูทั้งหมด</button></div>
+       <div id="dashRecent"></div>
+      </div>
+      <div class="card">
+       <div class="card-title">สัดส่วนตามประเภทสินทรัพย์ (มูลค่าปัจจุบัน)</div>
+       <div id="dashByType"></div>
+      </div>
+     </div>
+    </div>
+   </div>
+
+   <!-- NEW TX -->
+   <div id="page-new-tx" class="pg-section" style="display:none">
+    <div class="pg-header"><div><div class="pg-title">📝 บันทึกธุรกรรม</div><div class="pg-sub">บันทึกการซื้อ/ขาย/ปันผล/ดอกเบี้ย</div></div></div>
+    <div class="pg-body">
+     <form id="txForm" onsubmit="return saveTx(event)">
+      <div style="display:grid;grid-template-columns:1.3fr .9fr;gap:18px;align-items:start">
+       <div>
+        <div class="card">
+         <div class="fs-title">รายละเอียดธุรกรรม</div>
+         <div class="f-row three">
+          <div class="form-group"><label class="form-label">วันที่ <span class="req">*</span></label><input type="date" id="fDate" class="form-control" required /></div>
+          <div class="form-group"><label class="form-label">ประเภทสินทรัพย์ <span class="req">*</span></label>
+           <select id="fAssetType" class="form-control" required onchange="calcTx()">
+            <option value="">-- เลือก --</option>
+            <option value="หุ้นไทย">หุ้นไทย (SET)</option>
+            <option value="หุ้นต่างประเทศ">หุ้นต่างประเทศ</option>
+            <option value="กองทุนรวม">กองทุนรวม</option>
+            <option value="คริปโต">คริปโตเคอร์เรนซี</option>
+            <option value="ทองคำ">ทองคำ</option>
+            <option value="พันธบัตร/ตราสารหนี้">พันธบัตร/ตราสารหนี้</option>
+            <option value="อื่นๆ">อื่นๆ</option>
+           </select>
+          </div>
+          <div class="form-group"><label class="form-label">ประเภทรายการ <span class="req">*</span></label>
+           <select id="fAction" class="form-control" required onchange="calcTx()">
+            <option value="ซื้อ">ซื้อ</option>
+            <option value="ขาย">ขาย</option>
+            <option value="ปันผล">เงินปันผล</option>
+            <option value="ดอกเบี้ย">ดอกเบี้ย</option>
+           </select>
+          </div>
+         </div>
+         <div class="f-row three">
+          <div class="form-group"><label class="form-label">สัญลักษณ์/ชื่อย่อ <span class="req">*</span></label><input type="text" id="fSymbol" class="form-control" placeholder="เช่น PTT, AAPL, BTC" required style="text-transform:uppercase" /></div>
+          <div class="form-group"><label class="form-label">ชื่อเต็ม</label><input type="text" id="fName" class="form-control" placeholder="ชื่อบริษัท/กองทุน" /></div>
+          <div class="form-group"><label class="form-label">Yahoo Finance Ticker <span class="tm">(ไม่บังคับ)</span></label><input type="text" id="fTicker" class="form-control" placeholder="เช่น PTT.BK, AAPL, BTC-USD, GC=F" /></div>
+         </div>
+         <div class="f-row three">
+          <div class="form-group"><label class="form-label">โบรกเกอร์ / ที่เก็บสินทรัพย์ <span class="tm">(ไม่บังคับ)</span></label>
+           <input type="text" id="fBroker" class="form-control" placeholder="เช่น ธนาคาร A, Binance, Bitkub" list="brokerList" />
+           <datalist id="brokerList"></datalist>
+          </div>
+         </div>
+         <div class="f-row three">
+          <div class="form-group"><label class="form-label">จำนวนหน่วย <span class="req">*</span></label><input type="number" id="fQty" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
+          <div class="form-group"><label class="form-label" id="lblPrice">ราคาต่อหน่วย <span class="req">*</span></label><input type="number" id="fPrice" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
+          <div class="form-group"><label class="form-label">ค่าธรรมเนียม</label><input type="number" id="fFee" class="form-control" step="any" min="0" value="0" oninput="calcTx()" /></div>
+         </div>
+         <div class="form-group"><label class="form-label">หมายเหตุ</label><textarea id="fNote" class="form-control" rows="2"></textarea></div>
+        </div>
+       </div>
+       <div>
+        <div class="card">
+         <div class="fs-title">สรุปยอด</div>
+         <div class="amt-box">
+          <div class="amt-row"><span>มูลค่ารวม</span><span id="dGross" class="fw">$ 0.00</span></div>
+          <div class="amt-row"><span>ค่าธรรมเนียม</span><span id="dFee" style="color:var(--warning)">$ 0.00</span></div>
+          <div class="amt-row total"><span id="dNetLbl">ยอดสุทธิ</span><span id="dNet">$ 0.00</span></div>
+         </div>
+         <div id="realizedBox" style="display:none;margin-top:12px;padding:10px;background:var(--cream-dark);border-radius:8px;font-size:13px;"></div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+         <button type="button" class="btn btn-secondary btn-lg" onclick="resetTxForm()">🔄 ล้างฟอร์ม</button>
+         <button type="submit" class="btn btn-primary btn-lg">💾 บันทึก</button>
+        </div>
+       </div>
+      </div>
+     </form>
+    </div>
+   </div>
+
+   <!-- TRANSACTIONS -->
+   <div id="page-transactions" class="pg-section" style="display:none">
+    <div class="pg-header">
+     <div><div class="pg-title">📋 รายการธุรกรรม</div><div class="pg-sub" id="txSub">—</div></div>
+     <button class="btn btn-primary" onclick="navigate('new-tx')">+ บันทึกธุรกรรม</button>
+    </div>
+    <div class="pg-body">
+     <div class="filter-bar">
+      <div class="form-group"><label class="form-label">ค้นหา</label><input type="text" id="sQ" class="form-control" placeholder="สัญลักษณ์/ชื่อ" oninput="filterTx()" style="min-width:160px" /></div>
+      <div class="form-group"><label class="form-label">จากวันที่</label><input type="date" id="sFrom" class="form-control" onchange="filterTx()" /></div>
+      <div class="form-group"><label class="form-label">ถึงวันที่</label><input type="date" id="sTo" class="form-control" onchange="filterTx()" /></div>
+      <div class="form-group"><label class="form-label">ประเภทสินทรัพย์</label><select id="sType" class="form-control" onchange="filterTx()"><option value="">ทั้งหมด</option></select></div>
+      <div class="form-group"><label class="form-label">รายการ</label><select id="sAction" class="form-control" onchange="filterTx()"><option value="">ทั้งหมด</option><option value="ซื้อ">ซื้อ</option><option value="ขาย">ขาย</option><option value="ปันผล">ปันผล</option><option value="ดอกเบี้ย">ดอกเบี้ย</option></select></div>
+      <div class="form-group"><label class="form-label">โบรกเกอร์</label><select id="sBroker" class="form-control" onchange="filterTx()"><option value="">ทั้งหมด</option></select></div>
+      <button class="btn btn-secondary btn-sm" onclick="clearTxFilters()">ล้าง</button>
+     </div>
+     <div class="card" style="padding:0"><div id="txTbl" class="tbl-wrap"></div></div>
+    </div>
+   </div>
+
+   <!-- HOLDINGS -->
+   <div id="page-holdings" class="pg-section" style="display:none">
+    <div class="pg-header"><div><div class="pg-title">📊 พอร์ตการลงทุน (Holdings)</div><div class="pg-sub">อัปเดตราคาปัจจุบันเพื่อคำนวณกำไร/ขาดทุนที่ยังไม่รับรู้ (หรือกดดึงราคาสดถ้ามี Ticker)</div></div></div>
+    <div class="pg-body"><div class="card" style="padding:0"><div id="holdTbl" class="tbl-wrap"></div></div></div>
+   </div>
+
+   <!-- DCA PLANNER & REBALANCE -->
+   <div id="page-dcaplan" class="pg-section" style="display:none">
+    <div class="pg-header"><div><div class="pg-title">🎯 แผน DCA & Rebalance</div><div class="pg-sub">Smart-DCA engine: Volatility-adjusted budget + multi-factor action signal (RSI/MACD/EMA26/P-E)</div></div></div>
+    <div class="pg-body">
+     <div class="card">
+      <div class="fs-title">ตั้งค่างบ DCA รายเดือน & ความผันผวน</div>
+      <div class="f-row three">
+       <div class="form-group" style="margin-bottom:0"><label class="form-label">งบ DCA ต่อเดือน ($)</label><input type="number" id="dcaBudget" class="form-control" step="any" min="0" /></div>
+       <div class="form-group" style="margin-bottom:0"><label class="form-label">ความผันผวนพอร์ต (Annualized Volatility %) <span class="tm">(กรอกเอง หรือใช้ค่าที่ดึงสดต่อสินทรัพย์)</span></label><input type="number" id="dcaVol" class="form-control" step="any" min="0" placeholder="เช่น 28" /></div>
+       <div class="form-group" style="margin-bottom:0;align-self:flex-end"><button class="btn btn-primary btn-full" onclick="saveDcaSettings()">💾 บันทึกและคำนวณ</button></div>
+      </div>
+      <p class="tm" style="font-size:12px;margin-top:8px">อ้างอิงตรรกะจาก Smart-DCA: หากความผันผวน &gt; 25% ต่อปี ระบบจะปรับเพิ่มงบ DCA อัตโนมัติ (สูงสุด 1.5 เท่า) เพราะราคาที่ตกแรงมักเป็นโอกาสสะสมที่ดีกว่า</p>
+     </div>
+     <div class="card">
+      <div class="card-hdr"><span class="card-title">เป้าหมายสัดส่วนพอร์ต (Target Allocation)</span><button class="btn btn-outline btn-sm" onclick="addTargetRow()">+ เพิ่มสินทรัพย์</button></div>
+      <div id="targetAllocForm"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+       <span class="tm" id="targetSumLbl">รวม: 0%</span>
+       <button class="btn btn-primary btn-sm" onclick="saveTargetAlloc()">💾 บันทึกเป้าหมาย</button>
+      </div>
+     </div>
+     <div class="card" style="padding:0">
+      <div style="padding:16px 20px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+       <div class="card-title" style="margin-bottom:4px">คำแนะนำ Rebalance & DCA</div>
+       <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="renderRebalTbl(false)">🔄 คำนวณใหม่ (ใช้ค่าที่กรอกเอง)</button>
+        <button class="btn btn-primary btn-sm" id="btnFetchLive" onclick="renderRebalTbl(true)">📡 ดึงข้อมูลตลาดสด (RSI/MACD/EMA/P-E)</button>
+       </div>
+      </div>
+      <div id="rebalTbl" class="tbl-wrap"></div>
+     </div>
+    </div>
+   </div>
+
+   <!-- TAX -->
+   <div id="page-tax" class="pg-section" style="display:none">
+    <div class="pg-header"><div><div class="pg-title">🧾 จัดการภาษีการลงทุน</div><div class="pg-sub">สรุปกำไรที่รับรู้และภาระภาษีโดยประมาณตามปีภาษี</div></div></div>
+    <div class="pg-body">
+     <div class="alert alert-warning">⚠️ ตัวเลขที่คำนวณเป็นการประมาณการเบื้องต้นตามหลักเกณฑ์ทั่วไป ไม่ใช่คำแนะนำทางภาษีอย่างเป็นทางการ กรุณาตรวจสอบกับผู้เชี่ยวชาญ/สรรพากรก่อนยื่นแบบจริง</div>
+     <div class="filter-bar">
+      <div class="form-group"><label class="form-label">ปีภาษี (พ.ศ.)</label><input type="number" id="taxYear" class="form-control" style="width:120px" /></div>
+      <div style="display:flex;gap:8px;align-self:flex-end">
+       <button class="btn btn-primary btn-sm" onclick="loadTaxReport()">คำนวณ</button>
+      </div>
+     </div>
+     <div id="taxOut"></div>
+    </div>
+   </div>
+
+   <!-- USERS -->
+   <div id="page-users" class="pg-section" style="display:none">
+    <div class="pg-header">
+     <div><div class="pg-title">👥 จัดการผู้ใช้</div></div>
+     <button class="btn btn-primary" onclick="openAddUser()">+ เพิ่มผู้ใช้</button>
+    </div>
+    <div class="pg-body"><div class="card" style="padding:0"><div id="usersTbl" class="tbl-wrap"></div></div></div>
+   </div>
+
+   <!-- SETTINGS -->
+   <div id="page-settings" class="pg-section" style="display:none">
+    <div class="pg-header"><div><div class="pg-title">⚙️ ตั้งค่า & อัตราภาษี</div></div></div>
+    <div class="pg-body">
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+      <div class="card">
+       <div class="fs-title">ข้อมูลผู้ลงทุน</div>
+       <div class="form-group"><label class="form-label">ชื่อ-นามสกุล / ชื่อบัญชี</label><input type="text" id="stName" class="form-control" /></div>
+       <div class="form-group"><label class="form-label">เลขประจำตัวผู้เสียภาษี</label><input type="text" id="stTax" class="form-control" /></div>
+       <div class="form-group"><label class="form-label">ที่อยู่</label><textarea id="stAddr" class="form-control" rows="2"></textarea></div>
+       <button class="btn btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
+      </div>
+      <div class="card">
+       <div class="fs-title">อัตราภาษี/สถานะภาษีตามประเภทสินทรัพย์ (%)</div>
+       <div id="taxRatesForm"></div>
+       <button class="btn btn-primary" onclick="saveTaxRates()" style="margin-top:8px">💾 บันทึกอัตราภาษี</button>
+       <p class="tm" style="font-size:12px;margin-top:8px">ค่าเริ่มต้นอ้างอิงหลักเกณฑ์ทั่วไป: กำไรจากการขายหุ้น SET ยกเว้นภาษี, เงินปันผลหุ้นไทยหัก ณ ที่จ่าย 10%, ดอกเบี้ยหัก ณ ที่จ่าย 15%, กำไรคริปโตหัก ณ ที่จ่าย 15%</p>
+      </div>
+     </div>
+    </div>
+   </div>
+
+  </main>
+ </div>
+</div>
+
+<!-- MODAL: Edit TX -->
+<div id="mEditTx" class="modal-overlay">
+ <div class="modal-box md">
+  <div class="modal-hdr"><span class="modal-title">✏️ แก้ไขธุรกรรม</span><button class="modal-close" onclick="closeM('mEditTx')">×</button></div>
+  <div class="f-row three">
+   <div class="form-group"><label class="form-label">วันที่</label><input type="date" id="eDate" class="form-control" /></div>
+   <div class="form-group"><label class="form-label">ประเภทสินทรัพย์</label>
+    <select id="eAssetType" class="form-control">
+     <option value="หุ้นไทย">หุ้นไทย (SET)</option>
+     <option value="หุ้นต่างประเทศ">หุ้นต่างประเทศ</option>
+     <option value="กองทุนรวม">กองทุนรวม</option>
+     <option value="คริปโต">คริปโตเคอร์เรนซี</option>
+     <option value="ทองคำ">ทองคำ</option>
+     <option value="พันธบัตร/ตราสารหนี้">พันธบัตร/ตราสารหนี้</option>
+     <option value="อื่นๆ">อื่นๆ</option>
+    </select>
+   </div>
+   <div class="form-group"><label class="form-label">รายการ</label>
+    <select id="eAction" class="form-control"><option value="ซื้อ">ซื้อ</option><option value="ขาย">ขาย</option><option value="ปันผล">ปันผล</option><option value="ดอกเบี้ย">ดอกเบี้ย</option></select>
+   </div>
+  </div>
+  <div class="f-row three">
+   <div class="form-group"><label class="form-label">สัญลักษณ์</label><input type="text" id="eSymbol" class="form-control" /></div>
+   <div class="form-group"><label class="form-label">ชื่อเต็ม</label><input type="text" id="eName" class="form-control" /></div>
+   <div class="form-group"><label class="form-label">Ticker</label><input type="text" id="eTicker" class="form-control" /></div>
+  </div>
+  <div class="f-row three">
+   <div class="form-group"><label class="form-label">โบรกเกอร์ / ที่เก็บสินทรัพย์</label><input type="text" id="eBroker" class="form-control" list="brokerList" /></div>
+  </div>
+  <div class="f-row three">
+   <div class="form-group"><label class="form-label">จำนวนหน่วย</label><input type="number" id="eQty" class="form-control" step="any" /></div>
+   <div class="form-group"><label class="form-label">ราคาต่อหน่วย</label><input type="number" id="ePrice" class="form-control" step="any" /></div>
+   <div class="form-group"><label class="form-label">ค่าธรรมเนียม</label><input type="number" id="eFee" class="form-control" step="any" /></div>
+  </div>
+  <div class="form-group"><label class="form-label">หมายเหตุ</label><textarea id="eNote" class="form-control" rows="2"></textarea></div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="closeM('mEditTx')">ยกเลิก</button>
+   <button class="btn btn-danger" onclick="deleteTxFromModal()">🗑️ ลบ</button>
+   <button class="btn btn-primary" onclick="saveEditTx()">💾 บันทึก</button>
+  </div>
+ </div>
+</div>
+
+<!-- MODAL: User -->
+<div id="mUser" class="modal-overlay">
+ <div class="modal-box sm">
+  <div class="modal-hdr"><span class="modal-title" id="mUserTitle">+ เพิ่มผู้ใช้</span><button class="modal-close" onclick="closeM('mUser')">×</button></div>
+  <div class="form-group"><label class="form-label">ชื่อ</label><input type="text" id="uName" class="form-control" /></div>
+  <div class="form-group"><label class="form-label">ชื่อผู้ใช้</label><input type="text" id="uUser" class="form-control" /></div>
+  <div class="form-group" id="uPassGrp"><label class="form-label">รหัสผ่าน</label><input type="password" id="uPass" class="form-control" /></div>
+  <div class="form-group"><label class="form-label">บทบาท</label><select id="uRole" class="form-control"><option value="staff">Staff</option><option value="owner">เจ้าของ</option></select></div>
+  <div class="modal-footer">
+   <button class="btn btn-secondary" onclick="closeM('mUser')">ยกเลิก</button>
+   <button class="btn btn-primary" onclick="saveUser()">💾 บันทึก</button>
+  </div>
+ </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // Point this at your deployed backend if not running on localhost:4000.
+  window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:4000/api';
+</script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

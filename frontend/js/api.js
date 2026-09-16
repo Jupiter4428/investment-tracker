@@ -21,20 +21,20 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
-    throw new Error('เชื่อมต่อ API ไม่สำเร็จ (' + API_BASE + ') — ตรวจสอบว่า backend กำลังรันอยู่หรือไม่');
+    throw new Error('Could not reach the API (' + API_BASE + ') — make sure the backend is running');
   }
   if (res.status === 401) {
     Auth.token = null;
     Auth.me = null;
     if (location.hash !== '#login') {
-      showLoginPage('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+      showLoginPage('Session expired. Please sign in again');
     }
     throw new Error('unauthorized');
   }
   let data = null;
   try { data = await res.json(); } catch { /* no body */ }
   if (!res.ok) {
-    throw new Error((data && data.error) || `เกิดข้อผิดพลาด (${res.status})`);
+    throw new Error((data && data.error) || `Request failed (${res.status})`);
   }
   return data;
 }

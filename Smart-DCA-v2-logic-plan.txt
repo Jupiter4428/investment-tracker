@@ -1,0 +1,1180 @@
+# SMART-DCA V2 — LOGIC / FUNCTION PLAN v1.1
+
+## เป้าหมาย
+
+สร้าง Smart-DCA v2 โดยต่อยอดจาก investment-tracker เดิม
+
+หลักการ:
+
+* legacy dcaEngine.js ถูกถอดออกเมื่อ Smart-DCA v2 ครอบคลุมเส้นทาง allocation แล้ว
+* ไม่ AUTO SELL
+* ใช้เงินใหม่เพื่อ DCA / Rebalance เข้า Target
+* ลดหรือหยุด DCA หุ้นที่ overweight
+* ใช้ Hard Max เป็นข้อจำกัดสูงสุด
+* หุ้นที่ถือจริงแต่ไม่มี Target ต้องไม่ถูกนำไปเพิ่ม allocation โดยอัตโนมัติ
+* Pure functions ต้องมี unit tests ตั้งแต่เริ่มพัฒนา
+
+1. CONFIG
+
+---
+
+ไฟล์:
+backend/src/config/smartDcaV2.js
+
+หน้าที่:
+
+* TARGET_WEIGHTS
+* HARD_MAX_WEIGHTS
+* SCORE_WEIGHTS
+* VOLATILITY_MULTIPLIER
+* SCORE_THRESHOLDS
+* RISK_LIMITS
+* DCA_CONFIG
+* VALUATION_CONFIG
+
+ไม่มี business calculation ใน config
+
+2. TARGET PORTFOLIO
+
+---
+
+Target Portfolio หลัก:
+
+TSM   18%   max 23%
+MSFT  17%   max 22%
+GOOGL 15%   max 20%
+ASML  13%   max 18%
+NVDA  11%   max 16%
+AVGO   9%   max 14%
+AMZN   7%   max 12%
+LITE   4%   max  7%
+SPOT   4%   max  7%
+BE     2%   max  5%
+
+รวม Target = 100%
+
+3. NOT_IN_TARGET
+
+---
+
+หุ้นที่มีอยู่จริงในบัญชี แต่ไม่ได้อยู่ใน Target Portfolio
+เช่น:
+
+* IONQ
+* SPCX
+* FN
+
+ให้สถานะ:
+
+NOT_IN_TARGET
+
+กฎ:
+
+* targetWeight = 0
+* hardMaxWeight = 0
+* DCA allocation = 0
+* ไม่ซื้อเพิ่มอัตโนมัติ
+* ไม่ AUTO SELL
+* ไม่รวมในการจัดสรร DCA ปกติ
+* แสดงแยกใน Dashboard
+* แสดงสถานะ HOLD หรือ REVIEW ตาม risk/data/fundamental condition
+* หากต้องการให้หุ้นกลับเข้าสู่ allocation logic ต้องเพิ่ม Target Weight อย่างชัดเจนใน config
+
+สำคัญ:
+
+ไม่ใช้:
+hardMaxWeight = currentWeight
+
+เพราะ currentWeight เปลี่ยนตามราคาตลาดและอาจทำให้ risk/allocation logic ผิดความหมาย
+
+ตัวอย่าง:
+
+IONQ
+currentWeight = 3%
+targetWeight = 0%
+hardMaxWeight = 0%
+status = NOT_IN_TARGET
+DCA = 0
+
+4. SCORING ENGINE
+
+---
+
+ไฟล์:
+backend/src/services/smartDcaV2/scoring.js
+
+Functions:
+
+clamp(value, min, max)
+
+* จำกัดคะแนนให้อยู่ใน 0–100
+
+safeNumber(value, fallback)
+
+* ป้องกัน NaN / undefined / invalid number
+
+underweightScore(currentWeight, targetWeight)
+
+* วัดว่าหุ้นต่ำกว่า Target มากแค่ไหน
+* Underweight มาก = คะแนนสูง
+* Overweight = คะแนนต่ำ
+
+valuationScore(ticker, pe, valuationReference)
+
+* เปรียบเทียบ P/E กับ valuation reference
+* เป็น relative valuation signal
+* ไม่ถือว่าเป็น intrinsic/fair value จริง
+
+rsiScore(rsi)
+
+* RSI ต่ำ = accumulation score สูง
+* RSI สูง = score ลดลง
+* RSI สูงไม่ใช่ SELL
+
+trendScore(price, ema26)
+
+* ราคาต่ำกว่า EMA26 = score สูงขึ้น
+* ราคาสูงกว่า EMA26 มาก = score ลดลง
+
+macdScore(macdData)
+
+* ใช้ MACD / signal / histogram
+* Bearish / negative histogram = accumulation score สูงขึ้น
+* Bullish = ลด score บางส่วน
+* ไม่สร้าง SELL action โดยตรง
+
+volatilityScore(annualizedVolatility)
+
+* volatility ที่สูงขึ้นสามารถเพิ่ม accumulation opportunity
+* extreme volatility ต้องผ่าน risk gate
+
+calculateCompositeScore(scores)
+
+* รวมคะแนนตาม SCORE_WEIGHTS
+* ผลลัพธ์ 0–100
+
+scoreStock(data)
+
+* รวมทุก factor
+* คืน stock score
+* ระบุ currentWeight
+* targetWeight
+* hardMaxWeight
+* isOverweight
+* isOverMax
+* status
+
+5. VALUATION FRAMEWORK
+
+---
+
+ห้ามใช้ P/E reference โดยไม่มีที่มา
+
+v2 รุ่นแรกใช้:
+
+referenceType = MANUAL
+
+เหตุผล:
+
+* deterministic
+* อธิบายได้
+* backtest ได้ง่าย
+* ไม่ขึ้นกับข้อมูล historical ที่อาจเปลี่ยนย้อนหลัง
+
+ใน config ต้อง document assumption ทุกค่า
+
+ตัวอย่าง comment:
+
+// Valuation assumption:
+// MANUAL reference P/E values are strategy assumptions,
+// not objective fair-value estimates.
+// These values must be reviewed when the valuation framework changes.
+
+โครงสร้าง:
+
+VALUATION_CONFIG = {
+referenceType: "MANUAL",
+
+referencePE: {
+TSM: ...,
+MSFT: ...,
+GOOGL: ...,
+ASML: ...,
+NVDA: ...,
+AVGO: ...,
+AMZN: ...,
+LITE: ...,
+SPOT: ...,
+BE: ...
+}
+}
+
+อนาคตสามารถเพิ่ม:
+
+STOCK_HISTORICAL
+SECTOR
+
+แต่ไม่รวมใน v2 รุ่นแรกจนกว่าจะมี data source ที่ชัดเจน
+
+6. SCORE WEIGHTS
+
+---
+
+Underweight  30%
+Valuation    20%
+RSI          15%
+Trend        15%
+MACD         10%
+Volatility   10%
+
+รวม = 100%
+
+7. ALLOCATION ENGINE
+
+---
+
+ไฟล์:
+backend/src/services/smartDcaV2/allocation.js
+
+Functions:
+
+calculateBuyCapacity(currentWeight, hardMaxWeight)
+
+* คำนวณพื้นที่ที่สามารถซื้อเพิ่มก่อนถึง Hard Max
+
+calculateUnderweight(currentWeight, targetWeight)
+
+* คำนวณ gap จาก Target
+
+calculatePriority(stockScore, underweight, risk)
+
+* สร้าง priority สำหรับ allocation
+
+applyHardMax(stock, allocation)
+
+* ถ้า currentWeight >= hardMaxWeight:
+  allocation = 0
+  action = STOP_BUY
+
+applyNotInTarget(stock, allocation)
+
+* ถ้า status = NOT_IN_TARGET:
+  allocation = 0
+
+applySingleStockLimit(allocation, budget)
+
+* ป้องกันหุ้นเดียวกิน budget มากเกินไป
+
+allocateInitialBudget(stocks, budget)
+
+* สร้าง allocation เบื้องต้นจาก priority
+
+normalizeAllocations(allocations, budget)
+
+* ทำ allocation ให้สอดคล้องกับ budget
+* ต้อง respect Hard Max ของทุกหุ้น
+* ห้ามใช้ single-pass proportional scaling อย่างเดียว
+
+redistributeRemainingBudget(allocations, stocks, remainingBudget)
+
+* กระจายเงินที่เหลือไปยังหุ้นที่ยังมี capacity
+* ต้องตรวจ Hard Max ใหม่ทุก iteration
+
+allocateDcaBudget(stocks, budget)
+
+* allocator หลัก
+
+buildDcaPlan(portfolio, stocks, budget)
+
+* สร้าง DCA plan ทั้ง portfolio
+
+8. CONSTRAINED ALLOCATION
+
+---
+
+Hard Max ต้องมีผลเหนือ score
+
+ลำดับ:
+
+Score
+↓
+Initial Allocation
+↓
+Hard Max Constraint
+↓
+Remove blocked stocks
+↓
+Calculate remaining budget
+↓
+Redistribute
+↓
+Check Hard Max again
+↓
+Repeat until:
+
+* budget exhausted
+* หรือไม่มี stock ที่มี capacity เหลือ
+  ↓
+  Cash Remaining
+
+ห้ามทำ:
+
+initial allocation
+→ normalize ครั้งเดียว
+→ จบ
+
+เพราะอาจทำให้หุ้นอื่นทะลุ Hard Max หลัง redistribution
+
+9. ALLOCATION INVARIANTS
+
+---
+
+หลัง allocation เสร็จ ต้องเป็นจริงเสมอ:
+
+1. allocation >= 0
+
+2. allocation <= available budget
+
+3. stock allocation <= remaining Hard Max capacity
+
+4. NOT_IN_TARGET allocation = 0
+
+5. STOP_BUY allocation = 0
+
+6. total allocated <= budget
+
+7. ห้ามมี stock ใดทะลุ Hard Max
+
+8. หากไม่มี capacity เหลือ:
+   remaining budget → cash
+
+9. RSI + PORTFOLIO STATE
+
+---
+
+Portfolio state ต้องมี priority เหนือ indicator
+
+กรณี:
+
+Underweight มาก + RSI oversold
+→ ACCUMULATE
+
+Underweight มาก + RSI neutral
+→ BUY
+
+Underweight มาก + RSI overbought
+→ BUY / DCA ในจำนวนที่ลดลง
+
+Near Target + RSI overbought
+→ HOLD / PAUSE
+
+Overweight + RSI neutral
+→ PAUSE
+
+Overweight + RSI overbought
+→ PAUSE
+
+Current >= Hard Max + ทุก RSI
+→ STOP_BUY
+
+หลักการ:
+
+RSI สามารถลด priority
+แต่ RSI ไม่สามารถ override Hard Max
+
+11. ACTION ENGINE
+
+---
+
+Actions:
+
+ACCUMULATE
+
+* score สูงมาก
+* underweight
+* risk gate ผ่าน
+
+BUY
+
+* score สูง
+* eligible
+
+DCA
+
+* score กลาง
+* ยังเหมาะกับ regular accumulation
+
+HOLD
+
+* score ต่ำ/กลาง
+* ไม่จำเป็นต้องเพิ่ม allocation
+
+PAUSE
+
+* overweight
+* หรือ RSI/technical condition ไม่เหมาะกับการเพิ่ม DCA
+* ไม่มี allocation ใหม่
+
+STOP_BUY
+
+* currentWeight >= hardMaxWeight
+* hard rule
+* ไม่ขาย
+
+NOT_IN_TARGET
+
+* targetWeight = 0
+* DCA = 0
+* แสดงแยก
+
+REVIEW
+
+* data problem
+* portfolio risk สูง
+* fundamental/data deterioration
+* unusual condition
+
+12. ACTION PRIORITY
+
+---
+
+กฎ priority:
+
+1. Data invalid
+   → REVIEW
+
+2. Portfolio risk BLOCK
+   → จำกัดหรือหยุด allocation ตาม risk policy
+
+3. NOT_IN_TARGET
+   → NOT_IN_TARGET
+   → DCA = 0
+
+4. Current >= Hard Max
+   → STOP_BUY
+
+5. Overweight
+   → PAUSE / HOLD
+
+6. Underweight + technical favorable
+   → ACCUMULATE / BUY
+
+7. Underweight + technical unfavorable
+   → BUY / DCA ลดลง
+
+8. Near Target
+   → DCA ปกติหรือลดลง
+
+Hard rules มีสิทธิ์เหนือ score
+
+13. BUY ELIGIBILITY
+
+---
+
+ก่อนจัดสรรเงินทุกหุ้นต้องผ่าน:
+
+Data Validation
+|
+v
+Portfolio Risk Gate
+|
+v
+Not-In-Target Check
+|
+v
+Hard Max Check
+|
+v
+Stock Scoring
+|
+v
+Buy Eligibility
+|
+v
+Volatility Multiplier
+|
+v
+Budget Cap
+|
+v
+Final Allocation
+
+14. VOLATILITY BUDGET
+
+---
+
+Multiplier:
+
+< 15%       1.00x
+15–25%      1.00x
+25–40%      1.15x
+40–60%      1.30x
+
+> 60%       1.50x
+
+Hard maximum:
+1.50x
+
+หลักการ:
+
+Volatility สูงไม่ได้หมายความว่าต้องซื้อหนักเสมอ
+
+ต้องผ่าน:
+
+* Risk Gate
+* Hard Max
+* Budget Cap
+
+ก่อนใช้ multiplier
+
+Multiplier ไม่สามารถทำให้ allocation เกิน Hard Max
+
+15. RISK ENGINE
+
+---
+
+ไฟล์:
+backend/src/services/smartDcaV2/risk.js
+
+Functions:
+
+calculateConcentrationRisk(holdings)
+
+* ตรวจ single-stock concentration
+
+calculateAiInfrastructureExposure(holdings)
+
+* ตรวจ exposure กลุ่ม AI / semiconductor infrastructure
+* เป็น warning ไม่ใช่ auto sell
+
+calculatePortfolioDrawdown(portfolio)
+
+* ตรวจ drawdown
+
+calculateVolatilityRisk(portfolio)
+
+* ตรวจ portfolio volatility
+
+checkDataQuality(marketData)
+
+* ตรวจ price / indicator ที่หายหรือ invalid
+
+calculatePortfolioRisk(portfolio, marketData)
+
+* รวม portfolio-level risk
+
+getRiskGate(risk)
+
+* PASS
+* CAUTION
+* REVIEW
+* BLOCK
+
+16. SMART-DCA V2 ORCHESTRATOR
+
+---
+
+ไฟล์:
+backend/src/services/smartDcaV2/index.js
+
+Functions:
+
+buildSmartDcaV2(input)
+
+* entry point หลัก
+
+analyzePortfolio(portfolio, marketData)
+
+* วิเคราะห์ portfolio ทั้งหมด
+
+analyzeStock(stock, marketData, portfolio)
+
+* วิเคราะห์หุ้นรายตัว
+
+classifyStockStatus(stock)
+
+* TARGET
+* NOT_IN_TARGET
+* OVERWEIGHT
+* AT_HARD_MAX
+
+generateRecommendations(stocks, risk)
+
+* สร้างคำแนะนำ
+
+generateDcaPlan(stocks, budget, risk)
+
+* สร้าง allocation
+
+generateReasoning(stock)
+
+* อธิบายเหตุผลทั้งหมด
+
+generateActionReason(stock)
+
+* อธิบาย BUY / DCA / HOLD / PAUSE / STOP_BUY
+
+generateRiskReason(risk)
+
+* อธิบาย portfolio risk
+
+17. OUTPUT
+
+---
+
+Engine ควรคืน structure ประมาณนี้:
+
+{
+portfolio: {
+value,
+monthlyBudget
+},
+
+risk: {
+level,
+score,
+gate
+},
+
+stocks: [
+{
+ticker,
+status,
+
+```
+  currentWeight,
+  targetWeight,
+  hardMaxWeight,
+
+  scores: {
+    underweight,
+    valuation,
+    rsi,
+    trend,
+    macd,
+    volatility
+  },
+
+  compositeScore,
+  action,
+  dcaAmount,
+
+  reasons: []
+}
+```
+
+],
+
+notInTarget: [
+{
+ticker,
+currentWeight,
+action: "NOT_IN_TARGET",
+dcaAmount: 0
+}
+],
+
+summary: {
+totalAllocated,
+cashRemaining
+}
+}
+
+18. EXPLANATION ENGINE
+
+---
+
+Dashboard ต้องอธิบายได้ว่า:
+
+TSM — BUY
+
+เหตุผล:
+
+* น้ำหนักต่ำกว่า Target
+* RSI อยู่ใน accumulation zone
+* ราคาเทียบ EMA26
+* valuation อยู่ใน acceptable range
+* ยังไม่ถึง Hard Max
+
+ไม่ควรแสดงเพียง:
+
+TSM BUY $25
+
+สำหรับ NOT_IN_TARGET:
+
+IONQ — NOT IN TARGET
+
+เหตุผล:
+
+* หุ้นมีอยู่ใน portfolio
+* ไม่มี Target Weight ใน Smart-DCA v2
+* ระบบจะไม่เพิ่ม DCA อัตโนมัติ
+* ไม่มี AUTO SELL
+
+19. PROJECTION ENGINE
+
+---
+
+ไฟล์:
+backend/src/services/smartDcaV2/projection.js
+
+Functions:
+
+futureValue(principal, monthlyContribution, annualReturn, years)
+
+projectPortfolio(portfolio, monthlyBudget, years)
+
+calculateScenario(...)
+
+calculateRequiredContribution(...)
+
+Scenario:
+
+Bear     6%
+Base     8%
+Bull    10%
+Strong  12%
+
+ใช้เพื่อ planning
+
+ไม่ใช่ prediction
+
+20. API ROUTE
+
+---
+
+ไฟล์:
+backend/src/routes/smartDcaV2.js
+
+Endpoint:
+
+GET /api/dca/v2
+
+หรือ POST หาก pattern ของ project เดิมเหมาะกว่า
+
+Input:
+
+{
+monthlyBudget: 200
+}
+
+Output:
+
+* portfolio
+* risk
+* stock scores
+* actions
+* DCA allocation
+* reasons
+* NOT_IN_TARGET
+
+21. FRONTEND
+
+---
+
+เพิ่ม Smart-DCA v2 dashboard
+
+แสดง:
+
+Monthly DCA
+Portfolio Risk
+Total Score
+Allocated
+Cash Remaining
+
+สำหรับ Target Stocks:
+
+Ticker
+Current %
+Target %
+Hard Max %
+Score
+Action
+DCA $
+
+สำหรับ Not-In-Target:
+
+Ticker
+Current %
+Target = 0%
+Status
+Action
+DCA = $0
+
+กดหุ้นแล้วเห็น:
+
+Underweight
+Valuation
+RSI
+Trend
+MACD
+Volatility
+Composite Score
+Action
+เหตุผล
+
+22. UNIT TESTS
+
+---
+
+เขียนพร้อมกับ pure functions
+
+ไม่ต้องรอ Backtest
+
+โครงสร้าง:
+
+backend/src/tests/smartDcaV2/
+├── scoring.test.js
+└── allocation.test.js
+
+23. SCORING TESTS
+
+---
+
+scoring.test.js
+
+ต้องทดสอบอย่างน้อย:
+
+1. RSI ต่ำ
+   → score สูงกว่า RSI สูง
+
+2. RSI สูง
+   → score ลดลง
+
+3. Underweight มาก
+   → score สูงกว่า Underweight น้อย
+
+4. Overweight
+   → underweight score ต่ำ
+
+5. Composite score
+   → อยู่ในช่วง 0–100
+
+6. Invalid numeric input
+   → ไม่ทำให้ระบบ crash
+
+7. Missing indicator
+   → ใช้ fallback / REVIEW ตาม policy
+
+8. ALLOCATION TESTS
+
+---
+
+allocation.test.js
+
+ต้องทดสอบ:
+
+1. allocation ไม่ติดลบ
+
+2. total allocation <= budget
+
+3. ไม่มี stock เกิน Hard Max
+
+4. STOP_BUY
+   → allocation = 0
+
+5. NOT_IN_TARGET
+   → allocation = 0
+
+6. Underweight stock
+   → priority สูงกว่า overweight stock เมื่อ risk/score เทียบเท่า
+
+7. Redistribution
+   → ไม่ทำให้ stock อื่นทะลุ Hard Max
+
+8. หุ้นเต็ม Hard Max แล้ว
+   → เงินถูกกระจายไปยัง stock ที่ยังมี capacity
+
+9. ทุก stock เต็ม Hard Max
+   → เงินที่เหลือเป็น cash
+
+10. Budget = 0
+    → allocation ทั้งหมด = 0
+
+11. Invalid stock data
+    → ไม่ทำให้ allocator crash
+
+12. ALLOCATION INTEGRATION TEST
+
+---
+
+ต้องมี test case จำลอง:
+
+Budget = $100
+
+Stock A:
+Target = 20%
+Hard Max = 25%
+
+Stock B:
+Target = 20%
+Hard Max = 22%
+
+Stock C:
+Target = 10%
+Hard Max = 15%
+
+Initial allocation อาจเสนอ:
+
+A = $60
+B = $25
+C = $15
+
+ระบบต้อง enforce:
+
+A <= $25
+B <= $22
+C <= $15
+
+จากนั้น redistribute เงินที่เหลือ
+
+และตรวจ Hard Max ซ้ำทุกครั้ง
+
+ผลสุดท้ายต้องไม่เกิน:
+
+A $25
+B $22
+C $15
+
+และเงินที่เหลือเป็น Cash
+
+26. BACKTEST
+
+---
+
+ทำหลัง engine เสถียร
+
+แต่ unit tests ต้องเสร็จก่อน
+
+เปรียบเทียบ:
+
+Fixed DCA
+vs
+Smart-DCA v1
+vs
+Smart-DCA v2
+
+Metrics:
+
+Final Value
+Total Contributions
+Return
+Max Drawdown
+CAGR
+Volatility
+Sharpe
+
+27. HARD RULES
+
+---
+
+1. NEVER AUTO SELL
+
+2. RSI สูง
+   → ลด DCA
+   → ไม่ SELL
+
+3. Underweight
+   → priority สูงขึ้น
+
+4. Overweight
+   → priority ลดลง
+
+5. Current >= Hard Max
+   → STOP_BUY
+
+6. NOT_IN_TARGET
+   → DCA = 0
+
+7. Volatility สูง
+   → อาจเพิ่ม DCA
+   → สูงสุด 1.50x
+
+8. Data invalid
+   → REVIEW
+
+9. Portfolio risk สูง
+   → REVIEW / จำกัด DCA
+
+10. Score ไม่สามารถ override Hard Max
+
+11. Volatility multiplier ไม่สามารถ override Hard Max
+
+12. Score ไม่ใช่ dollar amount
+
+13. Normalize ไม่สามารถทำให้ allocation เกิน Hard Max
+
+14. Redistribution ต้องตรวจ Hard Max ทุก iteration
+
+15. LOGIC PRIORITY
+
+---
+
+Data Validation
+>
+Portfolio Risk
+>
+Not-In-Target
+>
+Hard Max
+>
+Portfolio Weight
+>
+Stock Score
+>
+Eligibility
+>
+Volatility Multiplier
+>
+Budget Cap
+>
+Constrained Allocation
+>
+Redistribution
+>
+Final Allocation
+>
+Explanation
+
+29. DESIGN PRINCIPLE
+
+---
+
+Smart-DCA v2 ไม่ใช่ระบบทายราคาหุ้น
+
+มันคือ:
+
+Portfolio-aware
++
+Risk-aware
++
+Target-aware
++
+Indicator-aware
++
+Budget-aware
++
+Constraint-aware
+
+DCA allocator
+
+เป้าหมาย:
+
+"นำเงินใหม่เข้า portfolio อย่างมีวินัย
+โดยพยายามเติมส่วนที่ขาด
+ลดการเติมส่วนที่เกิน
+ไม่เพิ่มหุ้นที่อยู่นอก Target
+และไม่สร้าง concentration เพิ่มโดยไม่จำเป็น"
+
+30. EXISTING CODEBASE INTEGRATION
+
+---
+
+ก่อนเขียน integration ต้อง map ของเดิม:
+
+backend/src/services/marketData.js
+backend/src/services/indicators.js
+backend/src/services/portfolioEngine.js
+
+ต้องตรวจ:
+
+* function ชื่ออะไร
+* input/output เป็นอะไร
+* indicator format เป็นอะไร
+* holdings format เป็นอะไร
+* market data format เป็นอะไร
+* route เดิมเรียกอย่างไร
+* database schema เก็บข้อมูลอย่างไร
+
+จากนั้นจัดประเภทแต่ละ function:
+
+KEEP
+MODIFY
+WRAP
+REPLACE
+NEW
+
+ห้ามเขียน integration แบบเดาสุ่ม
+
+31. IMPLEMENTATION ORDER
+
+---
+
+Phase 1:
+Config
+↓
+Scoring
+↓
+Scoring Unit Tests
+
+Phase 2:
+Allocation
+↓
+Hard Max Constraint
+↓
+Redistribution
+↓
+Allocation Unit Tests
+
+Phase 3:
+Risk Engine
+↓
+Action Engine
+
+Phase 4:
+Orchestrator
+↓
+Output
+↓
+Explanation
+
+Phase 5:
+API
+
+Phase 6:
+Frontend
+
+Phase 7:
+Projection
+
+Phase 8:
+Backtest
+
+ทุก phase ต้องผ่าน test ของ phase ก่อนหน้า
+
+32. FINAL V2 PRINCIPLE
+
+---
+
+Hard Rules > Portfolio State > Score > Indicator
+
+กล่าวคือ:
+
+Data ผิด
+→ ไม่ฝืนซื้อ
+
+Risk สูง
+→ ไม่ฝืนซื้อ
+
+Not in Target
+→ ไม่เพิ่ม
+
+ถึง Hard Max
+→ ไม่เพิ่ม
+
+Overweight
+→ ลด/หยุด DCA
+
+Underweight
+→ เพิ่ม priority
+
+RSI/Trend/MACD/Valuation
+→ ใช้ปรับ priority
+
+Volatility
+→ ใช้ปรับ budget ภายในข้อจำกัด
+
+Budget
+→ เป็นข้อจำกัดสุดท้าย
+
+ไม่มีกรณีใดที่ score สูงแล้วสามารถ bypass Hard Max ได้

@@ -35,7 +35,7 @@ router.get('/brokers', (req, res) => {
 router.post('/', (req, res) => {
   const b = req.body || {};
   if (!b.assetType || !b.symbol || !b.action || !(Number(b.qty) > 0)) {
-    return res.status(400).json({ error: 'กรุณากรอกข้อมูลให้ครบถ้วน' });
+    return res.status(400).json({ error: 'Please fill in all required fields' });
   }
   const symbol = String(b.symbol).trim().toUpperCase();
 
@@ -43,7 +43,7 @@ router.post('/', (req, res) => {
     const holdings = computeHoldings(allTx());
     const h = holdings[symbol];
     if (!h || h.qty < Number(b.qty) - 0.0000001) {
-      return res.status(400).json({ error: 'จำนวนหน่วยที่มีไม่พอสำหรับขาย' });
+      return res.status(400).json({ error: 'Not enough units to sell' });
     }
   }
 
@@ -78,7 +78,7 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'ไม่พบธุรกรรม' });
+  if (!existing) return res.status(404).json({ error: 'Transaction not found' });
   const b = req.body || {};
   const updated = {
     id: existing.id,
@@ -103,7 +103,7 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const info = db.prepare('DELETE FROM transactions WHERE id = ?').run(req.params.id);
-  if (info.changes === 0) return res.status(404).json({ error: 'ไม่พบธุรกรรม' });
+  if (info.changes === 0) return res.status(404).json({ error: 'Transaction not found' });
   res.json({ ok: true });
 });
 

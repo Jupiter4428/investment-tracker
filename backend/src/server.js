@@ -42,7 +42,7 @@ app.use('/api/snapshots', snapshotsRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: 'เกิดข้อผิดพลาดในระบบ' });
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 4000;

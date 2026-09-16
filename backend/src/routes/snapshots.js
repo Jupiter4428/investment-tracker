@@ -27,7 +27,7 @@ router.post('/capture', async (req, res) => {
   const allTx = db.prepare('SELECT * FROM transactions').all();
   const prices = db.prepare('SELECT symbol, price FROM prices').all();
   const { totalCost, totalMV } = portfolioTotals(allTx, prices);
-  if (totalMV <= 0) return res.status(400).json({ error: 'ยังไม่มีมูลค่าพอร์ตสำหรับบันทึก snapshot' });
+  if (totalMV <= 0) return res.status(400).json({ error: 'No portfolio value to snapshot yet' });
 
   let benchmarkPrice = null;
   try {
@@ -91,7 +91,7 @@ router.get('/', (req, res) => {
 
 router.delete('/:date', (req, res) => {
   const info = db.prepare('DELETE FROM portfolio_snapshots WHERE date = ?').run(req.params.date);
-  if (info.changes === 0) return res.status(404).json({ error: 'ไม่พบสแนปช็อตวันที่นี้' });
+  if (info.changes === 0) return res.status(404).json({ error: 'Snapshot not found for that date' });
   res.json({ ok: true });
 });
 

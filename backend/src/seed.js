@@ -19,7 +19,7 @@ function seed() {
   if (userCount === 0) {
     const username = process.env.SEED_ADMIN_USERNAME || 'admin';
     const password = process.env.SEED_ADMIN_PASSWORD || 'admin1234';
-    const name = process.env.SEED_ADMIN_NAME || 'ผู้ดูแลระบบ';
+    const name = process.env.SEED_ADMIN_NAME || 'System Admin';
     db.prepare('INSERT INTO users (id, username, password_hash, name, role, created_at) VALUES (?,?,?,?,?,?)').run(
       'u001',
       username,

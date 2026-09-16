@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { computeHoldings, realizedForSell } = require('../services/portfolioEngine');
+const { computeHoldings, realizedForSell, resolveDashboardTotals } = require('../services/portfolioEngine');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -38,7 +38,7 @@ router.get('/', (req, res) => {
 router.put('/:symbol/price', (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   const price = Number(req.body?.price);
-  if (Number.isNaN(price)) return res.status(400).json({ error: 'ราคาไม่ถูกต้อง' });
+  if (Number.isNaN(price)) return res.status(400).json({ error: 'Invalid price' });
   db.prepare(
     `INSERT INTO prices (symbol, price, updated_at) VALUES (?, ?, ?)
      ON CONFLICT(symbol) DO UPDATE SET price = excluded.price, updated_at = excluded.updated_at`
@@ -48,8 +48,10 @@ router.put('/:symbol/price', (req, res) => {
 
 router.get('/dashboard', (req, res) => {
   const list = holdingsWithMarketValue();
-  const totalCost = list.reduce((s, h) => s + h.costBasis, 0);
-  const totalMV = list.reduce((s, h) => s + h.marketValue, 0);
+  const latestSnapshot = db.prepare(
+    'SELECT date, total_value AS totalValue, total_cost AS totalCost FROM portfolio_snapshots ORDER BY date DESC LIMIT 1'
+  ).get();
+  const { totalCost, totalMV, asOfDate } = resolveDashboardTotals(list, latestSnapshot);
   const unrealizedPL = totalMV - totalCost;
 
   const thisYear = String(new Date().getFullYear());
@@ -81,6 +83,7 @@ router.get('/dashboard', (req, res) => {
     assetCount: list.length,
     recentTransactions: recent,
     byType,
+    asOfDate,
   });
 });
 

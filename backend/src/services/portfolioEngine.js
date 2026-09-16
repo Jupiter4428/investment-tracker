@@ -76,4 +76,21 @@ function portfolioTotals(allTxRows, priceRows) {
   return { totalCost, totalMV };
 }
 
-module.exports = { computeHoldings, realizedForSell, portfolioTotals };
+function resolveDashboardTotals(holdingsList, latestSnapshot) {
+  const liveCost = holdingsList.reduce((sum, holding) => sum + holding.costBasis, 0);
+  const liveMV = holdingsList.reduce((sum, holding) => sum + holding.marketValue, 0);
+  if (holdingsList.length > 0) {
+    return { totalCost: liveCost, totalMV: liveMV, asOfDate: null, source: 'holdings' };
+  }
+  if (latestSnapshot && (Number(latestSnapshot.totalValue) > 0 || Number(latestSnapshot.totalCost) > 0)) {
+    return {
+      totalCost: Number(latestSnapshot.totalCost),
+      totalMV: Number(latestSnapshot.totalValue),
+      asOfDate: latestSnapshot.date || null,
+      source: 'snapshot',
+    };
+  }
+  return { totalCost: 0, totalMV: 0, asOfDate: null, source: 'empty' };
+}
+
+module.exports = { computeHoldings, realizedForSell, portfolioTotals, resolveDashboardTotals };

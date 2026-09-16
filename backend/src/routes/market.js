@@ -9,7 +9,7 @@ router.use(requireAuth);
 router.get('/indicators/:ticker', async (req, res) => {
   const data = await getIndicatorsForTicker(req.params.ticker, { forceRefresh: req.query.refresh === 'true' });
   if (!data) {
-    return res.status(502).json({ error: 'ไม่สามารถดึงข้อมูลราคาสำหรับสัญลักษณ์นี้ได้ กรุณากรอกราคา/RSI/P-E ด้วยตนเอง' });
+    return res.status(502).json({ error: 'Could not fetch a price for this ticker. Enter price / RSI / P-E manually.' });
   }
   res.json({ data });
 });

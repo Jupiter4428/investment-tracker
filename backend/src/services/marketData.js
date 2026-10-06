@@ -46,7 +46,7 @@ function writeCache(symbol, payload) {
  * "BTC-USD", "GC=F"). Returns null on failure (falls back gracefully to manual price
  * entry in the UI, same as the original single-file app).
  */
-async function getIndicatorsForTicker(ticker, { forceRefresh = false } = {}) {
+async function getIndicatorsForTicker(ticker, { forceRefresh = false, allowStaleFallback = true } = {}) {
   if (!ticker) return null;
   if (!forceRefresh) {
     const cached = readCache(ticker);
@@ -92,6 +92,7 @@ async function getIndicatorsForTicker(ticker, { forceRefresh = false } = {}) {
     return result;
   } catch (err) {
     console.error(`[marketData] fetch failed for "${ticker}":`, err.message);
+    if (!allowStaleFallback) return null;
     // Fall back to a stale cache entry if we have one, mirroring indicators.py's
     // "offline fallback to stale cache" behaviour.
     const row = db.prepare('SELECT payload FROM market_cache WHERE symbol = ?').get(ticker);
@@ -106,4 +107,10 @@ async function getIndicatorsForTicker(ticker, { forceRefresh = false } = {}) {
   }
 }
 
-module.exports = { getIndicatorsForTicker };
+async function getCurrentMarketPrice(ticker) {
+  const quote = await getYahoo().quote(ticker);
+  const price = Number(quote?.regularMarketPrice);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
+module.exports = { getIndicatorsForTicker, getCurrentMarketPrice };

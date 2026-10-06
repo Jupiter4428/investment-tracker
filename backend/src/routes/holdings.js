@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { cashBalancesToUsd, computeCashBalances, computeHoldings, computeNetTotalInvested, mergeCashBalances, realizedForSell, resolveCurrencyPerUsdRates, resolveDashboardSnapshotValue } = require('../services/portfolioEngine');
+const { cashBalancesToUsd, computeCashBalances, computeDashboardNetTotalInvested, computeHoldings, computeNetTotalInvested, mergeCashBalances, realizedForSell, resolveCurrencyPerUsdRates, resolveDashboardSnapshotValue } = require('../services/portfolioEngine');
 const { computeStockWinRate, computeXirr } = require('../services/performance');
 
 const router = express.Router();
@@ -78,9 +78,7 @@ router.get('/dashboard', (req, res) => {
   const { totalCost, totalMV, asOfDate, source: resolvedSource } = snapshotBase;
   const nav = totalMV + cashBalance;
   const unrealizedPL = totalMV - totalCost;
-  const netTotalInvested = resolvedSource === 'snapshot'
-    ? Number(latestSnapshot.netTotalInvested || 0) + computeNetTotalInvested(cashTransactions, undefined, trackingStart, currentFxRates)
-    : computeNetTotalInvested(txs, undefined, trackingStart, currentFxRates);
+  const netTotalInvested = computeDashboardNetTotalInvested(txs, latestSnapshot, trackingStart, currentFxRates);
   const sells = txs.filter((t) => t.action === 'ขาย' && t.date.startsWith(thisYear));
   const bySymbol = {};
   txs.forEach((t) => {

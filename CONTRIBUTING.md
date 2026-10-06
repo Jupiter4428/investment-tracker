@@ -107,6 +107,8 @@ Frontend เรียก REST API ด้วย JWT authentication; SQLite ใช
 
 Yahoo Finance อาจจำกัดการเรียกหรือไม่มีข้อมูลสำหรับ ticker นั้น ระบบจะ fallback ไปใช้ cache/manual data และ Smart-DCA ใช้ `REVIEW` เมื่อข้อมูลไม่พอ
 
+ราคา quote จาก API ใช้สกุลเงินของ ticker โดยตรง การ refresh ราคาหุ้นไทยจากหน้า Holdings จะแปลงเป็น USD ก่อนบันทึก แต่ Smart-DCA `fetchLive=true` ยังไม่แปลง FX; ให้หลีกเลี่ยงการใช้ flow หลังกับหุ้นไทยจนกว่าจะมีการแก้ไข
+
 ## Endpoint Index
 
 | Method | Path | Auth | Purpose |

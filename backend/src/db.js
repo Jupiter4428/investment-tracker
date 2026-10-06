@@ -92,6 +92,16 @@ CREATE TABLE IF NOT EXISTS portfolio_snapshots (
   benchmark_price REAL,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS smart_dca_training_samples (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,
+  captured_at INTEGER NOT NULL,
+  calculation_mode TEXT NOT NULL CHECK(calculation_mode IN ('stored_calculation','fetch_requested')),
+  ticker TEXT NOT NULL,
+  sample_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_smart_dca_training_run ON smart_dca_training_samples(run_id);
 `);
 
 // Lightweight migration for databases created before the `broker` column existed.

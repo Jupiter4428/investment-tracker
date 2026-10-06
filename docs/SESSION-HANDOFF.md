@@ -16,6 +16,7 @@ The OCR slip-scanning feature mentioned in this historical handoff was subsequen
 
 - Transactions and stored portfolio prices are interpreted as USD; the database has no per-transaction or per-price currency field.
 - The Holdings page refresh flow converts Thai stock prices using a live `THB=X` quote before saving and captures a same-day snapshot when prices change.
+- The Portfolio value history chart preserves snapshots and markers before October 2026; `2026-09-30` remains a pinned point on the existing line, and the new monthly marker cycle starts at `2026-10-28`. The latest non-anchor snapshot extends the line without a marker.
 - The `/market/quote/:ticker` endpoint returns the market quote in the ticker's native currency. Smart-DCA `fetchLive=true` currently persists indicator prices directly without FX conversion; avoid using this flow to refresh Thai stock prices in the USD-based portfolio until the conversion is fixed.
 - Smart-DCA training samples can be downloaded by an owner as JSONL. Their `outcome` is `null`; they are not observed investment results. Transaction import/export is not implemented.
 - `backend/.env.example` includes `RSI_OVERSOLD`, `RSI_OVERBOUGHT`, `REBALANCE_TOLERANCE`, and `VOL_DCA_CAP`; runtime currently does not read these variables.

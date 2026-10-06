@@ -21,6 +21,12 @@ function fmtMoney(value) {
   return '$' + fmt(value);
 }
 
+function fmtCurrency(value, currency) {
+  const code = String(currency || 'USD').trim().toUpperCase();
+  const symbol = { USD: '$', THB: '฿', EUR: '€', JPY: '¥', GBP: '£' }[code] || `${code} `;
+  return symbol + fmt(value);
+}
+
 function fmtQ(value) {
   return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 8 });
 }
@@ -338,11 +344,11 @@ function renderTxTbl(list) {
   const wrap = document.getElementById('txTbl');
   if (!list.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No transactions yet</p></div>'; return; }
   wrap.innerHTML = `<table>
-  <thead><tr><th>Date</th><th>Asset</th><th>Symbol</th><th>Broker</th><th>Action</th><th class="td-r">Qty / Amount</th><th class="td-r">Price (USD)</th><th class="td-r">Fee (USD)</th><th class="td-r">Tax (USD)</th><th class="td-r">Net (USD)</th><th class="td-c">Edit</th></tr></thead>
+  <thead><tr><th>Date</th><th>Asset</th><th>Symbol</th><th>Broker</th><th>Action</th><th class="td-r">Qty / Amount</th><th class="td-r">Price</th><th class="td-r">Fee</th><th class="td-r">Tax</th><th class="td-r">Net</th><th class="td-c">Edit</th></tr></thead>
    <tbody>${list.map((t) => {
     const gross = t.qty * t.price;
-    const fxRate = Number(t.fx_rate || 1);
-    const net = (t.action === 'ซื้อ' || t.action === 'ถอนเงิน' ? gross + t.fee + (t.tax || 0) : gross - t.fee - (t.tax || 0)) * fxRate;
+    const currency = t.currency || 'USD';
+    const net = t.action === 'ซื้อ' || t.action === 'ถอนเงิน' ? gross + t.fee + (t.tax || 0) : gross - t.fee - (t.tax || 0);
     const isCashFlow = t.action === 'ฝากเงิน' || t.action === 'ถอนเงิน';
     return `<tr>
       <td style="font-size:12px">${fmtDS(t.date)}</td>
@@ -350,11 +356,11 @@ function renderTxTbl(list) {
       <td class="mono">${isCashFlow ? '—' : `${t.symbol}${t.ticker ? `<span class="ticker-chip">${t.ticker}</span>` : ''}`}</td>
       <td style="font-size:12px">${t.broker || '<span class="tm">—</span>'}</td>
       <td>${actBadge(t.action)}</td>
-      <td class="td-r">${isCashFlow ? `${fmt(t.qty)} ${t.currency || 'USD'}` : fmtQ(t.qty)}</td>
-      <td class="td-r">${isCashFlow ? '—' : fmt(t.price * fxRate)}</td>
-      <td class="td-r">${fmt(t.fee * fxRate)}</td>
-      <td class="td-r">${fmt((t.tax || 0) * fxRate)}</td>
-      <td class="td-r fw">${fmtMoney(net)}</td>
+      <td class="td-r">${isCashFlow ? fmtCurrency(t.qty, currency) : fmtQ(t.qty)}</td>
+      <td class="td-r">${isCashFlow ? '—' : fmtCurrency(t.price, currency)}</td>
+      <td class="td-r">${fmtCurrency(t.fee, currency)}</td>
+      <td class="td-r">${fmtCurrency(t.tax || 0, currency)}</td>
+      <td class="td-r fw">${fmtCurrency(net, currency)}</td>
       <td class="td-c"><button class="btn btn-outline btn-sm" onclick="openEditTx('${t.id}')">✏️</button></td>
      </tr>`;
   }).join('')}</tbody></table>`;

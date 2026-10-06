@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { cashBalancesToUsd, computeCashBalance, computeCashBalances, computeNetTotalInvested, portfolioTotals, resolveDashboardTotals, resolveDashboardSnapshotValue } = require('../src/services/portfolioEngine');
+const { cashBalancesToUsd, computeCashBalance, computeCashBalances, computeDashboardNetTotalInvested, computeNetTotalInvested, portfolioTotals, resolveDashboardTotals, resolveDashboardSnapshotValue } = require('../src/services/portfolioEngine');
 const { computeStockWinRate, computeXirr } = require('../src/services/performance');
 const { historicalSnapshots } = require('../src/data/historicalStatements');
 
@@ -21,6 +21,15 @@ test('dashboard totals prefer live holdings over statement snapshots', () => {
   assert.equal(totals.totalMV, 120);
   assert.equal(totals.totalCost, 100);
   assert.equal(totals.source, 'holdings');
+});
+
+test('dashboard net invested recomputes from the full cash ledger instead of stale snapshot baselines', () => {
+  const transactions = [
+    { date: '2024-01-01', action: 'ฝากเงิน', qty: 541.13, price: 1, fee: 0, tax: 0 },
+    { date: '2024-01-02', action: 'ซื้อ', qty: 5, price: 60, fee: 0, tax: 0 },
+    { date: '2024-01-03', action: 'ขาย', qty: 2, price: 65, fee: 0, tax: 0 },
+  ];
+  assert.equal(computeDashboardNetTotalInvested(transactions, { netTotalInvested: 82.62 }), 541.13);
 });
 
 test('snapshot cash balance is included when recomputing nav after the latest snapshot', () => {

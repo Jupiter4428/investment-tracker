@@ -190,6 +190,13 @@ function computeNetTotalInvested(txs, uptoDate, cashTrackingStartedAt, currencyP
     }, 0);
 }
 
+function computeDashboardNetTotalInvested(txs, latestSnapshot, cashTrackingStartedAt, currencyPerUsdRates = {}) {
+  // Snapshot values can lag the live cash ledger or carry legacy data; the dashboard must
+  // always reflect the full external capital history rather than the last stored cash balance.
+  void latestSnapshot;
+  return computeNetTotalInvested(txs, undefined, cashTrackingStartedAt, currencyPerUsdRates);
+}
+
 function resolveDashboardTotals(holdingsList, latestSnapshot) {
   const liveCost = holdingsList.reduce((sum, holding) => sum + holding.costBasis, 0);
   const liveMV = holdingsList.reduce((sum, holding) => sum + holding.marketValue, 0);
@@ -222,6 +229,7 @@ module.exports = {
   cashBalancesToUsd,
   computeCashBalance,
   computeCashBalances,
+  computeDashboardNetTotalInvested,
   computeHoldings,
   computeNetTotalInvested,
   realizedForSell,

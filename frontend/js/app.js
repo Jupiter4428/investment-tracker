@@ -328,10 +328,12 @@ async function loadHoldings() {
   }
 }
 async function refreshAllLivePrices() {
-  const btn = document.getElementById('btnRefreshAllPrices');
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ Fetching prices...';
+  const buttons = Array.from(document.querySelectorAll('[data-refresh-live-prices]'));
+  const originalLabels = buttons.map((button) => button.textContent);
+  buttons.forEach((button) => {
+    button.disabled = true;
+    button.textContent = '⏳ Fetching prices...';
+  });
   toast('📡 Fetching current prices for all tickers...', 'info');
   try {
     const { holdings } = await API.holdings();
@@ -374,7 +376,7 @@ async function refreshAllLivePrices() {
     await loadHoldings();
     if (updated) {
       await API.captureSnapshot(new Date().toISOString().slice(0, 10));
-      await loadDashChart();
+      await loadDash();
     }
 
     if (updated) {
@@ -387,8 +389,10 @@ async function refreshAllLivePrices() {
   } catch (e) {
     toast(errMsg(e), 'danger');
   } finally {
-    btn.disabled = false;
-    btn.textContent = originalLabel;
+    buttons.forEach((button, index) => {
+      button.disabled = false;
+      button.textContent = originalLabels[index];
+    });
   }
 }
 

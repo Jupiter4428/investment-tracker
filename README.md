@@ -103,21 +103,7 @@ Frontend เรียก REST API ด้วย JWT authentication; SQLite ใช
 
 ## API Overview
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/health` | ตรวจสถานะ API |
-| `POST` | `/api/auth/login` | เข้าสู่ระบบและรับ JWT |
-| `GET` | `/api/transactions` | อ่านและกรอง transactions |
-| `POST` | `/api/transactions` | บันทึก transaction |
-| `POST` | `/api/transactions/scan-slip` | OCR สลิป (`multipart/form-data`, field `slip`) |
-| `GET` | `/api/holdings/dashboard` | Dashboard และยอดพอร์ต |
-| `GET` | `/api/dca/v2?monthlyBudget=200` | คำนวณ Smart-DCA v2 |
-| `GET` / `PUT` | `/api/dca/config` | อ่านหรือบันทึก DCA config |
-| `GET` / `PUT` | `/api/dca/target-alloc` | อ่านหรือบันทึก target percentages และรายชื่อสินทรัพย์ที่เลือก DCA |
-| `GET` | `/api/snapshots?days=365` | อ่าน historical snapshots |
-| `POST` | `/api/snapshots/capture` | บันทึก portfolio snapshot |
-
-Endpoints สำหรับข้อมูลพอร์ตต้องแนบ `Authorization: Bearer <token>`
+รายละเอียด endpoint, authentication, request/response examples และ error codes อยู่ใน [CONTRIBUTE.md](CONTRIBUTE.md).
 
 ## Configuration
 

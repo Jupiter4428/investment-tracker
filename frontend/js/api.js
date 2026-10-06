@@ -10,7 +10,7 @@ const Auth = {
   set me(v) { v ? localStorage.setItem('it_me', JSON.stringify(v)) : localStorage.removeItem('it_me'); },
 };
 
-async function api(path, { method = 'GET', body, auth = true } = {}) {
+async function api(path, { method = 'GET', body, auth = true, responseType = 'json' } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (auth && Auth.token) headers.Authorization = 'Bearer ' + Auth.token;
   let res;
@@ -31,6 +31,7 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
     }
     throw new Error('unauthorized');
   }
+  if (res.ok && responseType === 'blob') return res.blob();
   let data = null;
   try { data = await res.json(); } catch { /* no body */ }
   if (!res.ok) {
@@ -62,11 +63,13 @@ const API = {
   targetAlloc: () => api('/dca/target-alloc'),
   saveTargetAlloc: (targetAlloc, dcaSymbols) => api('/dca/target-alloc', { method: 'PUT', body: { targetAlloc, dcaSymbols } }),
   smartDcaV2: (monthlyBudget, fetchLive = false) => api('/dca/v2?monthlyBudget=' + encodeURIComponent(monthlyBudget || 0) + (fetchLive ? '&fetchLive=true' : '')),
+  exportSmartDcaTrainingData: () => api('/dca/v2/training-data', { responseType: 'blob' }),
 
   settings: () => api('/settings'),
   saveSettings: (body) => api('/settings', { method: 'PUT', body }),
 
   marketIndicators: (ticker, refresh) => api(`/market/indicators/${encodeURIComponent(ticker)}${refresh ? '?refresh=true' : ''}`),
+  marketQuote: (ticker) => api(`/market/quote/${encodeURIComponent(ticker)}`),
 
   captureSnapshot: (date, benchmarkTicker) => api('/snapshots/capture', { method: 'POST', body: { date, benchmarkTicker } }),
   listSnapshots: (days) => api('/snapshots?days=' + (days || 180)),

@@ -591,11 +591,19 @@ function renderDashChart(series) {
   const ctx = document.getElementById('dashChart').getContext('2d');
   const labels = series.map((s) => fmtDS(s.date));
   const values = series.map((s) => s.portfolioValue);
+  const latestSnapshotDate = series.at(-1)?.date;
+  const isEmphasizedPoint = (point) => (
+    point.date === PORTFOLIO_HISTORY_START_DATE ||
+    (point.date === latestSnapshotDate && point.date >= PORTFOLIO_HISTORY_START_DATE)
+  );
   const pointRadii = series.map((point) => (
-    point.date < PORTFOLIO_HISTORY_START_DATE ? 2 : isPortfolioHistoryAnchor(point.date) ? 3 : 0
+    point.date < PORTFOLIO_HISTORY_START_DATE ? 2 : isPortfolioHistoryAnchor(point.date) || isEmphasizedPoint(point) ? 3 : 0
   ));
   const pointHoverRadii = series.map((point) => (
-    point.date < PORTFOLIO_HISTORY_START_DATE ? 4 : isPortfolioHistoryAnchor(point.date) ? 5 : 0
+    point.date < PORTFOLIO_HISTORY_START_DATE ? 4 : isPortfolioHistoryAnchor(point.date) || isEmphasizedPoint(point) ? 5 : 0
+  ));
+  const pointBackgroundColors = series.map((point) => (
+    isEmphasizedPoint(point) ? '#7A5C3E' : 'rgba(122,92,62,0.08)'
   ));
   if (dashChartInstance) dashChartInstance.destroy();
   dashChartInstance = new Chart(ctx, {
@@ -610,6 +618,7 @@ function renderDashChart(series) {
         borderWidth: 2.5,
         pointRadius: pointRadii,
         pointHoverRadius: pointHoverRadii,
+        pointBackgroundColor: pointBackgroundColors,
         tension: 0.15,
         fill: true,
       }],

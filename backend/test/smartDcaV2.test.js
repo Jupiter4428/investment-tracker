@@ -82,14 +82,19 @@ test('invalid market data requires review and receives no allocation', () => {
   assert.equal(result.summary.totalAllocated, 0);
 });
 
-test('historical statements provide month-end portfolio snapshots in THB', () => {
-  assert.equal(historicalSnapshots.length, 10);
+test('historical statements provide month-end portfolio snapshots in USD', () => {
+  assert.equal(historicalSnapshots.length, 11);
   assert.deepEqual(historicalSnapshots[0], {
     date: '2025-11-28',
-    totalValue: 3920.84,
-    totalCost: 3963.78,
+    totalValue: 121.73,
+    totalCost: 123.06,
     source: 'KKP Dime monthly statement',
   });
-  assert.equal(historicalSnapshots.at(-1).date, '2026-08-31');
+  assert.deepEqual(historicalSnapshots.at(-1), {
+    date: '2026-09-30',
+    totalValue: 583.06,
+    totalCost: 526.13,
+    source: 'KKP Dime monthly statement',
+  });
   assert.ok(historicalSnapshots.every((snapshot) => snapshot.totalValue >= 0 && snapshot.totalCost >= 0));
 });

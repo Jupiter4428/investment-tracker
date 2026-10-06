@@ -76,7 +76,7 @@
      <div id="dashError"></div>
      <div style="display:grid;grid-template-columns:1.6fr .9fr;gap:18px;align-items:stretch">
       <div class="card">
-       <div class="card-title">Portfolio value history</div>
+      <div class="card-title">Portfolio value history (USD)</div>
        <div id="dashChartWrap" style="position:relative;height:300px"><canvas id="dashChart"></canvas></div>
        <div id="dashChartEmpty" style="display:none" class="empty-state"><div class="empty-icon">📈</div><p>Not enough history yet. Click "Save today's portfolio value" to start (at least 2 points are needed for the chart).</p></div>
       </div>
@@ -140,8 +140,8 @@
          </div>
          <div class="f-row three">
           <div class="form-group"><label class="form-label">Quantity <span class="req">*</span></label><input type="number" id="fQty" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
-          <div class="form-group"><label class="form-label" id="lblPrice">Price per unit <span class="req">*</span></label><input type="number" id="fPrice" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
-          <div class="form-group"><label class="form-label">Fee (THB)</label><input type="number" id="fFee" class="form-control" step="any" min="0" value="0" oninput="calcTx()" /></div>
+          <div class="form-group"><label class="form-label" id="lblPrice">Price per unit (USD) <span class="req">*</span></label><input type="number" id="fPrice" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
+          <div class="form-group"><label class="form-label">Fee (USD)</label><input type="number" id="fFee" class="form-control" step="any" min="0" value="0" oninput="calcTx()" /></div>
          </div>
          <div class="form-group"><label class="form-label">Note</label><textarea id="fNote" class="form-control" rows="2"></textarea></div>
         </div>
@@ -150,9 +150,9 @@
         <div class="card">
          <div class="fs-title">Summary</div>
          <div class="amt-box">
-          <div class="amt-row"><span>Gross</span><span id="dGross" class="fw">฿0.00</span></div>
-          <div class="amt-row"><span>Fee</span><span id="dFee" style="color:var(--warning)">฿0.00</span></div>
-          <div class="amt-row total"><span id="dNetLbl">Net</span><span id="dNet">฿0.00</span></div>
+          <div class="amt-row"><span>Gross</span><span id="dGross" class="fw">$0.00</span></div>
+          <div class="amt-row"><span>Fee</span><span id="dFee" style="color:var(--warning)">$0.00</span></div>
+          <div class="amt-row total"><span id="dNetLbl">Net</span><span id="dNet">$0.00</span></div>
          </div>
          <div id="realizedBox" style="display:none;margin-top:12px;padding:10px;background:var(--cream-dark);border-radius:8px;font-size:13px;"></div>
         </div>
@@ -188,7 +188,7 @@
 
    <!-- HOLDINGS -->
    <div id="page-holdings" class="pg-section" style="display:none">
-    <div class="pg-header"><div><div class="pg-title">📊 Holdings</div><div class="pg-sub">Update current prices to calculate unrealized P/L, or fetch a live quote when a ticker is set</div></div></div>
+    <div class="pg-header"><div><div class="pg-title">📊 Holdings</div><div class="pg-sub">Update current prices to calculate unrealized P/L, or refresh live prices for all tickers</div></div><button class="btn btn-outline" id="btnRefreshAllPrices" onclick="refreshAllLivePrices()">↻ Fetch all current prices</button></div>
     <div class="pg-body"><div class="card" style="padding:0"><div id="holdTbl" class="tbl-wrap"></div></div></div>
    </div>
 
@@ -199,7 +199,7 @@
      <div class="card">
       <div class="fs-title">Monthly DCA budget &amp; volatility</div>
       <div class="f-row three">
-       <div class="form-group" style="margin-bottom:0"><label class="form-label">Monthly DCA budget (THB)</label><input type="number" id="dcaBudget" class="form-control" step="any" min="0" /></div>
+      <div class="form-group" style="margin-bottom:0"><label class="form-label">Monthly DCA budget (USD)</label><input type="number" id="dcaBudget" class="form-control" step="any" min="0" /></div>
        <div class="form-group" style="margin-bottom:0"><label class="form-label">Portfolio volatility (annualized %) <span class="tm">(enter manually, or use live per-asset values)</span></label><input type="number" id="dcaVol" class="form-control" step="any" min="0" placeholder="e.g. 28" /></div>
        <div class="form-group" style="margin-bottom:0;align-self:flex-end"><button class="btn btn-primary btn-full" onclick="saveDcaSettings()">💾 Save and calculate</button></div>
       </div>
@@ -216,9 +216,9 @@
      <div class="card" style="padding:0">
       <div style="padding:16px 20px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
        <div class="card-title" style="margin-bottom:4px">Rebalance &amp; DCA recommendations</div>
-       <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" onclick="renderSmartDcaV2(false)">🔄 Calculate Smart-DCA v2</button>
-        <button class="btn btn-primary btn-sm" id="btnFetchLive" onclick="renderSmartDcaV2(true)">📡 Fetch live market data</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="btnFetchLive" onclick="renderSmartDcaV2(true)">📡 Fetch &amp; calculate</button>
+       <button class="btn btn-outline btn-sm" onclick="exportSmartDcaTrainingData()">⇩ Export training data</button>
        </div>
       </div>
       <div id="rebalTbl" class="tbl-wrap"></div>
@@ -280,8 +280,8 @@
   </div>
   <div class="f-row three">
    <div class="form-group"><label class="form-label">Quantity</label><input type="number" id="eQty" class="form-control" step="any" /></div>
-   <div class="form-group"><label class="form-label">Price per unit</label><input type="number" id="ePrice" class="form-control" step="any" /></div>
-   <div class="form-group"><label class="form-label">Fee (THB)</label><input type="number" id="eFee" class="form-control" step="any" /></div>
+  <div class="form-group"><label class="form-label">Price per unit (USD)</label><input type="number" id="ePrice" class="form-control" step="any" /></div>
+  <div class="form-group"><label class="form-label">Fee (USD)</label><input type="number" id="eFee" class="form-control" step="any" /></div>
   </div>
   <div class="form-group"><label class="form-label">Note</label><textarea id="eNote" class="form-control" rows="2"></textarea></div>
   <div class="modal-footer">

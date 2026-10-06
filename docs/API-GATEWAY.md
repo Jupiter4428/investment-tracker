@@ -7,7 +7,8 @@
 - Base URL เริ่มต้น: `http://localhost:4000/api` เปลี่ยน port ได้ด้วย `PORT`
 - Request/response ใช้ JSON และ `Content-Type: application/json` ยกเว้น download ของ Smart-DCA training data
 - วันที่ใช้รูปแบบ `YYYY-MM-DD`; `created_at`, `updated_at`, `capturedAt` เป็น Unix milliseconds เว้นแต่ระบุเป็น ISO timestamp
-- จำนวนเงินที่กรอกใน transaction และค่าที่แสดงใน portfolio snapshot ใช้ USD เป็นหน่วยกลาง แอปไม่เก็บ currency แยกต่อ transaction
+- จำนวนเงินใน transaction, ตาราง `prices` และ portfolio snapshot ถูกแอปตีความเป็น USD; schema ไม่เก็บ currency แยกต่อ transaction หรือราคา
+- Market quote ใช้สกุลเงินตาม ticker และ API ไม่ทำ FX conversion อัตโนมัติ; หน้า Holdings แปลง quote หุ้นไทยก่อนบันทึก แต่ Smart-DCA `fetchLive=true` ยังบันทึกราคา indicator โดยตรง
 - Backend ใช้ SQLite; routes เข้าถึงฐานข้อมูลโดยตรงและมี error handler กลางสำหรับ unexpected errors
 - CORS ใช้รายการ comma-separated จาก `CORS_ORIGINS`; ถ้าไม่กำหนด จะอนุญาตทุก origin
 
@@ -152,7 +153,7 @@ Response `{ "holdings": [...] }`. แต่ละ holding มี `assetType`, `s
 
 ### `PUT /api/holdings/:symbol/price`
 
-Request `{ "price": 123.45 }`. บันทึก/แทนราคาของ symbol และตอบ `{ "ok": true }`; ค่า price ที่แปลงเป็น `NaN` คืน `400`.
+Request `{ "price": 123.45 }`. บันทึก/แทนราคาของ symbol และตอบ `{ "ok": true }`; ค่า price ที่แปลงเป็น `NaN` คืน `400`. แอปตีความค่าที่บันทึกเป็น USD จึงต้องแปลงราคาตลาดสกุลอื่นก่อนเรียก endpoint นี้.
 
 ### `GET /api/holdings/dashboard`
 
@@ -235,13 +236,15 @@ Response `{ "data": { "ticker", "price", "rsi", "macd", "signal", "ema26", "vola
 
 ### `GET /api/market/quote/:ticker`
 
-ดึง quote ล่าสุดโดยตรง ไม่ใช้ indicator cache. Response `{ "quote": { "ticker": "THB=X", "price": 33.5 } }`; หาก quote ใช้ไม่ได้คืน `502`.
+ดึง quote ล่าสุดโดยตรง ไม่ใช้ indicator cache และไม่แปลงสกุลเงิน. Response `{ "quote": { "ticker": "THB=X", "price": 33.5 } }`; `price` อยู่ในสกุลเงินที่ Yahoo Finance ใช้กับ ticker นั้น หาก quote ใช้ไม่ได้คืน `502`.
+
+หน้า Holdings มี flow แยกที่ดึงอัตรา `THB=X`, แปลงราคา ticker หุ้นไทยเป็น USD แล้วบันทึกผ่าน `PUT /api/holdings/:symbol/price`; เมื่อมีราคาเปลี่ยน UI จะเรียก `POST /api/snapshots/capture`. ในทางกลับกัน `GET /api/dca/v2?fetchLive=true` บันทึกราคา indicator ที่ดึงมาโดยตรงโดยไม่แปลง FX จึงไม่ควรใช้ flow นี้ refresh ราคาหุ้นไทยในฐานข้อมูลที่แอปตีความเป็น USD.
 
 ## Portfolio Snapshots
 
 ### `POST /api/snapshots/capture`
 
-Request optional: `{ "date": "2026-10-06", "benchmarkTicker": "SPY" }`. ค่า default date คือวันปัจจุบันและ benchmark คือ setting `benchmarkTicker` หรือ `SPY`. คำนวณมูลค่าจาก transactions กับราคาที่บันทึกไว้; บันทึกไม่เกินหนึ่งแถวต่อวัน โดย capture ซ้ำจะเขียนทับวันเดิม
+Request optional: `{ "date": "2026-10-06", "benchmarkTicker": "SPY" }`. ค่า default date คือวันปัจจุบันและ benchmark คือ setting `benchmarkTicker` หรือ `SPY`. คำนวณมูลค่าจาก transactions กับราคาที่บันทึกไว้ ไม่ได้ดึงราคาใหม่หรือแปลง FX; บันทึกไม่เกินหนึ่งแถวต่อวัน โดย capture ซ้ำจะเขียนทับวันเดิม
 
 Response `201`:
 

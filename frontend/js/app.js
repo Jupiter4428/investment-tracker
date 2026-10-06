@@ -18,7 +18,7 @@ function fmt(value) {
 }
 
 function fmtMoney(value) {
-  return '฿' + fmt(value);
+  return '$' + fmt(value);
 }
 
 function fmtQ(value) {
@@ -155,7 +155,7 @@ function calcTx() {
   const net = action === 'ซื้อ' ? gross + fee : gross - fee;
   document.getElementById('dNet').textContent = fmtMoney(net);
   document.getElementById('dNetLbl').textContent = action === 'ซื้อ' ? 'Amount due' : action === 'ขาย' ? 'Net proceeds' : 'Amount received';
-  document.getElementById('lblPrice').innerHTML = action === 'ปันผล' || action === 'ดอกเบี้ย' ? 'Amount per unit <span class="req">*</span>' : 'Price per unit <span class="req">*</span>';
+  document.getElementById('lblPrice').innerHTML = action === 'ปันผล' || action === 'ดอกเบี้ย' ? 'Amount per unit (USD) <span class="req">*</span>' : 'Price per unit (USD) <span class="req">*</span>';
   const rb = document.getElementById('realizedBox');
   const symbol = document.getElementById('fSymbol').value.trim().toUpperCase();
   if (action === 'ขาย' && symbol && qty > 0) {
@@ -241,7 +241,7 @@ function renderTxTbl(list) {
   const wrap = document.getElementById('txTbl');
   if (!list.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No transactions yet</p></div>'; return; }
   wrap.innerHTML = `<table>
-   <thead><tr><th>Date</th><th>Asset</th><th>Symbol</th><th>Broker</th><th>Action</th><th class="td-r">Qty</th><th class="td-r">Price</th><th class="td-r">Fee</th><th class="td-r">Net (THB)</th><th class="td-c">Edit</th></tr></thead>
+  <thead><tr><th>Date</th><th>Asset</th><th>Symbol</th><th>Broker</th><th>Action</th><th class="td-r">Qty</th><th class="td-r">Price (USD)</th><th class="td-r">Fee (USD)</th><th class="td-r">Net (USD)</th><th class="td-c">Edit</th></tr></thead>
    <tbody>${list.map((t) => {
     const gross = t.qty * t.price;
     const net = t.action === 'ซื้อ' ? gross + t.fee : gross - t.fee;
@@ -310,7 +310,7 @@ async function loadHoldings() {
     const { holdings } = await API.holdings();
     if (!holdings.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>No open holdings</p></div>'; return; }
     wrap.innerHTML = `<table>
-     <thead><tr><th>Symbol</th><th>Type</th><th>Broker</th><th class="td-r">Qty</th><th class="td-r">Avg cost</th><th class="td-r">Cost basis</th><th class="td-r">Current price</th><th class="td-r">Market value</th><th class="td-r">P/L</th><th class="td-r">%</th></tr></thead>
+    <thead><tr><th>Symbol</th><th>Type</th><th>Broker</th><th class="td-r">Qty</th><th class="td-r">Avg cost (USD)</th><th class="td-r">Cost basis (USD)</th><th class="td-r">Current price (USD)</th><th class="td-r">Market value (USD)</th><th class="td-r">P/L (USD)</th><th class="td-r">%</th></tr></thead>
      <tbody>${holdings.map((h) => `<tr>
         <td class="mono">${h.symbol}${h.ticker ? `<span class="ticker-chip">${h.ticker}</span>` : ''}<div class="tm" style="font-size:11px">${h.name || ''}</div></td>
         <td style="font-size:12px">${assetTypeLabel(h.assetType)}</td>
@@ -318,10 +318,7 @@ async function loadHoldings() {
         <td class="td-r">${fmtQ(h.qty)}</td>
         <td class="td-r">${fmtMoney(h.avgCost)}</td>
         <td class="td-r">${fmtMoney(h.costBasis)}</td>
-        <td class="td-r">
-          <input type="number" step="any" value="${h.currentPrice}" style="width:100px;padding:5px 7px;border:1.5px solid var(--brown-light);border-radius:6px;text-align:right" onchange="updatePrice('${h.symbol}',this.value)" />
-          ${h.ticker ? `<button class="btn btn-outline btn-sm" style="padding:4px 8px;margin-left:4px" title="Fetch live price from ${h.ticker}" onclick="fetchLivePrice('${h.symbol}','${h.ticker}')">📡</button>` : ''}
-        </td>
+        <td class="td-r">${fmtMoney(h.currentPrice)}</td>
         <td class="td-r fw">${fmtMoney(h.marketValue)}</td>
         <td class="td-r fw ${h.unrealizedPL >= 0 ? 'pos' : 'neg'}">${fmtMoney(h.unrealizedPL)}</td>
         <td class="td-r ${h.unrealizedPct >= 0 ? 'pos' : 'neg'}">${h.unrealizedPct.toFixed(2)}%</td>
@@ -330,20 +327,69 @@ async function loadHoldings() {
     wrap.innerHTML = `<div class="api-error-banner">${errMsg(e)}</div>`;
   }
 }
-async function updatePrice(symbol, val) {
+async function refreshAllLivePrices() {
+  const btn = document.getElementById('btnRefreshAllPrices');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching prices...';
+  toast('📡 Fetching current prices for all tickers...', 'info');
   try {
-    await API.updatePrice(symbol, parseFloat(val) || 0);
+    const { holdings } = await API.holdings();
+    const liveHoldings = holdings.filter((holding) => holding.ticker);
+    if (!liveHoldings.length) {
+      toast('No holdings have a market ticker to refresh', 'warning');
+      return;
+    }
+
+    const hasThaiStocks = liveHoldings.some((holding) => holding.assetType === 'หุ้นไทย');
+    let thbPerUsd = null;
+    if (hasThaiStocks) {
+      try {
+        const { quote } = await API.marketQuote('THB=X');
+        thbPerUsd = Number(quote?.price);
+      } catch {
+        thbPerUsd = null;
+      }
+    }
+
+    const outcomes = await Promise.all(liveHoldings.map(async (holding) => {
+      try {
+        const { data } = await API.marketIndicators(holding.ticker, true);
+        let price = Number(data?.price);
+        if (holding.assetType === 'หุ้นไทย') {
+          if (!Number.isFinite(thbPerUsd) || thbPerUsd <= 0) throw new Error('Exchange-rate quote unavailable');
+          price /= thbPerUsd;
+        }
+        if (!Number.isFinite(price)) throw new Error('Invalid market price');
+        if (price === Number(holding.currentPrice)) return 'unchanged';
+        await API.updatePrice(holding.symbol, price);
+        return 'updated';
+      } catch {
+        return 'failed';
+      }
+    }));
+
+    const updated = outcomes.filter((outcome) => outcome === 'updated').length;
+    const failed = outcomes.filter((outcome) => outcome === 'failed').length;
     await loadHoldings();
-  } catch (e) { toast(errMsg(e), 'danger'); }
-}
-async function fetchLivePrice(symbol, ticker) {
-  toast('📡 Fetching live price...', 'info');
-  try {
-    const { data } = await API.marketIndicators(ticker);
-    await API.updatePrice(symbol, data.price);
-    await loadHoldings();
-    toast(`✅ Updated ${symbol} to ${fmtMoney(data.price)} from ${ticker}`);
-  } catch (e) { toast(errMsg(e), 'danger'); }
+    if (updated) {
+      await API.captureSnapshot(new Date().toISOString().slice(0, 10));
+      await loadDashChart();
+    }
+
+    if (updated) {
+      toast(`✅ Updated ${updated} price${updated === 1 ? '' : 's'}; portfolio chart saved${failed ? ` (${failed} failed)` : ''}`);
+    } else if (failed) {
+      toast(`No prices changed; ${failed} ticker${failed === 1 ? '' : 's'} could not be refreshed`, 'warning');
+    } else {
+      toast('Prices are unchanged; portfolio chart was not recalculated', 'info');
+    }
+  } catch (e) {
+    toast(errMsg(e), 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 // ====== DASHBOARD ======
@@ -463,7 +509,7 @@ async function renderSmartDcaV2(fetchLive) {
       ? `<div style="padding:12px 16px;border-top:1px solid var(--cream-dark)"><div class="fw" style="margin-bottom:8px">NOT IN TARGET</div><div class="tm" style="font-size:12px">Holdings without a target get no automatic DCA and are never auto-sold.</div>${data.notInTarget.map((stock) => `<div style="display:flex;justify-content:space-between;padding:7px 0"><span class="mono">${stock.ticker}</span><span>${(stock.currentWeight * 100).toFixed(2)}% · ${stock.action}</span></div>`).join('')}</div>`
       : '';
     wrap.innerHTML = `<div style="padding:12px 16px;border-bottom:1px solid var(--cream-dark);font-weight:600">${riskText}</div>
-      <table><thead><tr><th>Ticker</th><th class="td-r">Current %</th><th class="td-r">Target %</th><th class="td-r">Hard max %</th><th class="td-r">Score</th><th>Action</th><th class="td-r">DCA (THB)</th><th>Reason</th></tr></thead>
+      <table><thead><tr><th>Ticker</th><th class="td-r">Current %</th><th class="td-r">Target %</th><th class="td-r">Hard max %</th><th class="td-r">Score</th><th>Action</th><th class="td-r">DCA (USD)</th><th>Reason</th></tr></thead>
       <tbody>${data.stocks.map((stock) => `<tr>
         <td class="mono">${stock.ticker}</td>
         <td class="td-r">${(stock.currentWeight * 100).toFixed(2)}%</td>
@@ -478,6 +524,18 @@ async function renderSmartDcaV2(fetchLive) {
   } catch (e) {
     wrap.innerHTML = `<div class="api-error-banner">${errMsg(e)}</div>`;
   }
+}
+async function exportSmartDcaTrainingData() {
+  try {
+    const file = await API.exportSmartDcaTrainingData();
+    if (!file.size) { toast('No Smart-DCA training samples yet', 'warning'); return; }
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `smart-dca-training-${new Date().toISOString().slice(0, 10)}.jsonl`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  } catch (e) { toast(errMsg(e), 'danger'); }
 }
 // ====== DASHBOARD CHART ======
 let dashChartInstance = null;
@@ -523,7 +581,7 @@ function renderDashChart(series) {
     data: {
       labels,
       datasets: [{
-        label: 'Portfolio value (THB)',
+        label: 'Historical portfolio value (USD)',
         data: values,
         borderColor: '#7A5C3E',
         backgroundColor: 'rgba(122,92,62,0.08)',
@@ -540,17 +598,18 @@ function renderDashChart(series) {
       plugins: { legend: { display: false } },
       scales: {
         x: { grid: { display: false } },
-        y: { ticks: { callback: (v) => '฿' + Number(v).toLocaleString('en-US') } },
+        y: { ticks: { callback: (v) => '$' + Number(v).toLocaleString('en-US') } },
       },
     },
   });
 }
 function renderDashStatsPanel(d) {
+  const money = fmtMoney;
   document.getElementById('dashStatsPanel').innerHTML = `
-   <div><div class="tm" style="font-size:12px">Total cost basis</div><div class="fw" style="font-size:19px">${fmtMoney(d.totalCost)}</div></div>
-   <div><div class="tm" style="font-size:12px">Current value</div><div class="fw" style="font-size:19px">${fmtMoney(d.totalMV)}</div></div>
-   <div><div class="tm" style="font-size:12px">Unrealized P/L</div><div class="fw ${d.unrealizedPL >= 0 ? 'pos' : 'neg'}" style="font-size:19px">${fmtMoney(d.unrealizedPL)} <span style="font-size:13px">(${d.unrealizedPct.toFixed(2)}%)</span></div></div>
-   <div><div class="tm" style="font-size:12px">Realized P/L (YTD)</div><div class="fw ${d.realizedThisYear >= 0 ? 'pos' : 'neg'}" style="font-size:19px">${fmtMoney(d.realizedThisYear)}</div></div>`;
+   <div><div class="tm" style="font-size:12px">Total cost basis</div><div class="fw" style="font-size:19px">${money(d.totalCost)}</div></div>
+   <div><div class="tm" style="font-size:12px">Current value</div><div class="fw" style="font-size:19px">${money(d.totalMV)}</div></div>
+   <div><div class="tm" style="font-size:12px">Unrealized P/L</div><div class="fw ${d.unrealizedPL >= 0 ? 'pos' : 'neg'}" style="font-size:19px">${money(d.unrealizedPL)} <span style="font-size:13px">(${d.unrealizedPct.toFixed(2)}%)</span></div></div>
+   <div><div class="tm" style="font-size:12px">Realized P/L (YTD)</div><div class="fw ${d.realizedThisYear >= 0 ? 'pos' : 'neg'}" style="font-size:19px">${money(d.realizedThisYear)}</div></div>`;
 }
 
 // ====== SETTINGS ======

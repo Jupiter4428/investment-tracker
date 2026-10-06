@@ -67,8 +67,9 @@
    <div id="page-dashboard" class="pg-section" style="display:none">
     <div class="pg-header">
      <div><div class="pg-title">🏠 Portfolio overview</div><div class="pg-sub" id="dashDate">—</div></div>
-     <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-outline" id="btnCaptureSnap" onclick="captureSnapshot()">📸 Save today's portfolio value</button>
+     <button class="btn btn-outline" data-refresh-live-prices onclick="refreshAllLivePrices()">↻ Fetch all current prices</button>
       <button class="btn btn-primary" onclick="navigate('new-tx')">+ New transaction</button>
      </div>
     </div>
@@ -188,7 +189,7 @@
 
    <!-- HOLDINGS -->
    <div id="page-holdings" class="pg-section" style="display:none">
-    <div class="pg-header"><div><div class="pg-title">📊 Holdings</div><div class="pg-sub">Update current prices to calculate unrealized P/L, or refresh live prices for all tickers</div></div><button class="btn btn-outline" id="btnRefreshAllPrices" onclick="refreshAllLivePrices()">↻ Fetch all current prices</button></div>
+    <div class="pg-header"><div><div class="pg-title">📊 Holdings</div><div class="pg-sub">Update current prices to calculate unrealized P/L, or refresh live prices for all tickers</div></div><button class="btn btn-outline" data-refresh-live-prices onclick="refreshAllLivePrices()">↻ Fetch all current prices</button></div>
     <div class="pg-body"><div class="card" style="padding:0"><div id="holdTbl" class="tbl-wrap"></div></div></div>
    </div>
 

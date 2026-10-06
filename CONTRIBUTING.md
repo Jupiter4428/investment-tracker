@@ -4,7 +4,7 @@
 
 ## Local Development
 
-ต้องใช้ Node.js `>=22.5.0` และ npm อินเทอร์เน็ตจำเป็นสำหรับดึงข้อมูล Yahoo Finance และดาวน์โหลด OCR language models ในการใช้งานครั้งแรก
+ต้องใช้ Node.js `>=22.5.0` และ npm อินเทอร์เน็ตจำเป็นสำหรับดึงข้อมูล Yahoo Finance
 
 เริ่ม backend จากโฟลเดอร์ `backend`:
 
@@ -20,6 +20,8 @@ npm start
 Base URL: http://localhost:4000/api
 Content-Type: application/json
 ```
+
+รายละเอียด endpoint และ API contracts ทั้งหมดอยู่ใน [เอกสาร API Gateway](docs/API-GATEWAY.md)
 
 ยกเว้น `GET /health` และ `POST /auth/login` ทุก endpoint ต้องแนบ JWT:
 
@@ -61,7 +63,7 @@ backend/
     middleware/auth.js
     routes/                 auth, transactions, holdings, dca,
                             smartDcaV2, settings, market, snapshots
-    services/                portfolio, market data, indicators, OCR
+    services/                portfolio, market data, indicators
       smartDcaV2/            scoring, risk, allocation, projection
   test/
 frontend/
@@ -101,10 +103,6 @@ Frontend เรียก REST API ด้วย JWT authentication; SQLite ใช
 
 ตรวจว่า backend ทำงานที่ port ใน `PORT`, ค่า `window.API_BASE_URL` ใน `frontend/index.html` ถูกต้อง และ origin ของหน้าเว็บอยู่ใน `CORS_ORIGINS`
 
-**OCR ใช้เวลานานในการสแกนครั้งแรก**
-
-ต้องเชื่อมต่ออินเทอร์เน็ตเพื่อดาวน์โหลด Thai/English language models; ครั้งถัดไปใช้ไฟล์ที่ cache ไว้
-
 **ข้อมูลตลาดไม่อัปเดต**
 
 Yahoo Finance อาจจำกัดการเรียกหรือไม่มีข้อมูลสำหรับ ticker นั้น ระบบจะ fallback ไปใช้ cache/manual data และ Smart-DCA ใช้ `REVIEW` เมื่อข้อมูลไม่พอ
@@ -119,7 +117,6 @@ Yahoo Finance อาจจำกัดการเรียกหรือไม
 | `GET` | `/transactions` | Yes | List/filter transactions |
 | `GET` | `/transactions/brokers` | Yes | Broker suggestions |
 | `POST` | `/transactions` | Yes | Create transaction |
-| `POST` | `/transactions/scan-slip` | Yes | OCR a supported slip image |
 | `POST` | `/transactions/preview-sell` | Yes | Estimate sell gain |
 | `PUT` | `/transactions/:id` | Yes | Update transaction |
 | `DELETE` | `/transactions/:id` | Yes | Delete transaction |
@@ -133,6 +130,7 @@ Yahoo Finance อาจจำกัดการเรียกหรือไม
 | `GET` | `/settings` | Yes | Read profile settings |
 | `PUT` | `/settings` | Owner | Update profile settings |
 | `GET` | `/market/indicators/:ticker` | Yes | Fetch market indicators |
+| `GET` | `/market/quote/:ticker` | Yes | Fetch the current market quote |
 | `GET` | `/snapshots` | Yes | Read portfolio performance series |
 | `POST` | `/snapshots/capture` | Yes | Capture/replace a date's portfolio snapshot |
 | `DELETE` | `/snapshots/:date` | Yes | Delete a snapshot |
@@ -163,7 +161,7 @@ Owner-only endpoints return `403` to staff accounts. Missing or invalid/expired 
 
 Returns `{ "transactions": [...] }`. `GET /transactions/brokers` returns `{ "brokers": [...] }`.
 
-`POST /transactions` requires `assetType`, `symbol`, `action`, and positive `qty`. Allowed actions are `ซื้อ`, `ขาย`, `ปันผล`, and `ดอกเบี้ย`. Optional fields: `date`, `ticker`, `name`, `broker`, `price`, `fee`, and `note`.
+`POST /transactions` requires `assetType`, `symbol`, `action`, and positive `qty`. Allowed actions are `ซื้อ`, `ขาย`, `ปันผล`, and `ดอกเบี้ย`. Optional fields: `date`, `ticker`, `name`, `broker`, `price`, `fee`, and `note`. Enter transaction prices and fees in USD; the schema does not store a per-transaction currency.
 
 ```json
 {
@@ -186,8 +184,6 @@ Returns `201 { "transaction": {...} }`. A sell is rejected with `400` if current
 `PUT /transactions/:id` accepts the same fields as a partial update and returns `{ "transaction": {...} }`. `DELETE /transactions/:id` returns `{ "ok": true }`, or `404` when the ID does not exist.
 
 `POST /transactions/preview-sell` accepts `{ "symbol": "AAPL", "qty": 1, "price": 220, "fee": 0.01 }` and returns `{ "avgCost", "remainingQty", "estimatedGain" }` without saving a transaction.
-
-`POST /transactions/scan-slip` uses `multipart/form-data` with one file field named `slip`. Accepted formats are PNG, JPEG, and WebP, up to 8 MB. The response contains `fields`, `status`, `canSave`, `missing`, `currency`, and OCR `confidence`; OCR only fills a draft, so the client must review and separately call `POST /transactions` to save it. Unsupported slips return `status: "unsupported"`.
 
 ## Holdings, Prices, and Dashboard
 
@@ -218,11 +214,11 @@ Returns `201 { "transaction": {...} }`. A sell is rejected with `400` if current
 
 `GET /settings` returns `{ "settings": { "name", "address", "benchmarkTicker" } }`. Owner-only `PUT /settings` accepts any of those fields and returns `{ "ok": true }`.
 
-`GET /market/indicators/:ticker` returns `{ "data": { "ticker", "price", "rsi", "macd", "signal", "ema26", "volatility", "historicalGrowth", "pe", "fetchedAt" } }`. Add `?refresh=true` to bypass the fresh cache. If no usable data is available, returns `502`.
+`GET /market/indicators/:ticker` returns `{ "data": { "ticker", "price", "rsi", "macd", "signal", "ema26", "volatility", "historicalGrowth", "pe", "fetchedAt" } }`. Add `?refresh=true` to bypass the fresh cache. `GET /market/quote/:ticker` returns `{ "quote": { "ticker", "price" } }` using a current quote. If no usable data is available, returns `502`. Live quotes for Thai stocks are converted to USD before being saved.
 
 ## Portfolio Snapshots
 
-`GET /snapshots?days=365` returns `series`, `portfolioMetrics`, `benchmarkMetrics`, and `benchmarkTicker`. `days` defaults to 365.
+`GET /snapshots?days=365` returns `series`, `portfolioMetrics`, `benchmarkMetrics`, and `benchmarkTicker`. Portfolio values and historical statement snapshots are stored in USD. `days` defaults to 365.
 
 `POST /snapshots/capture` accepts optional `{ "date": "YYYY-MM-DD", "benchmarkTicker": "SPY" }`. Re-capturing a date overwrites that date's snapshot. Returns `201 { "snapshot": {...} }`; returns `400` when there is no portfolio value to capture.
 
@@ -238,7 +234,6 @@ Most API errors use `{ "error": "..." }`.
 | `401` | Missing, invalid, or expired JWT |
 | `403` | Authenticated user lacks owner permission |
 | `404` | Requested transaction or snapshot not found |
-| `413` | Slip upload exceeds 8 MB |
 | `502` | Market data could not be fetched |
 | `500` | Unexpected server error |
 

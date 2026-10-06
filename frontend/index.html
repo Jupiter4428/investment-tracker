@@ -75,13 +75,13 @@
     </div>
     <div class="pg-body">
      <div id="dashError"></div>
-     <div style="display:grid;grid-template-columns:1.6fr .9fr;gap:18px;align-items:stretch">
+    <div class="dashboard-overview-grid">
       <div class="card">
       <div class="card-title">Portfolio value history (USD)</div>
        <div id="dashChartWrap" style="position:relative;height:300px"><canvas id="dashChart"></canvas></div>
        <div id="dashChartEmpty" style="display:none" class="empty-state"><div class="empty-icon">📈</div><p>Not enough history yet. Click "Save today's portfolio value" to start (at least 2 points are needed for the chart).</p></div>
       </div>
-      <div class="card" style="display:flex;flex-direction:column;justify-content:center;gap:14px" id="dashStatsPanel"></div>
+      <div class="card dashboard-stats-panel" id="dashStatsPanel"></div>
      </div>
      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start">
       <div class="card">
@@ -107,7 +107,7 @@
          <div class="fs-title">Transaction details</div>
          <div class="f-row three">
           <div class="form-group"><label class="form-label">Date <span class="req">*</span></label><input type="date" id="fDate" class="form-control" required /></div>
-          <div class="form-group"><label class="form-label">Asset type <span class="req">*</span></label>
+          <div class="form-group" id="fAssetGroup"><label class="form-label">Asset type <span class="req">*</span></label>
            <select id="fAssetType" class="form-control" required onchange="calcTx()">
             <option value="">-- Select --</option>
             <option value="หุ้นไทย">Thai stocks (SET)</option>
@@ -120,18 +120,32 @@
            </select>
           </div>
           <div class="form-group"><label class="form-label">Action <span class="req">*</span></label>
-           <select id="fAction" class="form-control" required onchange="calcTx()">
+           <select id="fAction" class="form-control" required onchange="updateTransactionForm()">
             <option value="ซื้อ">Buy</option>
             <option value="ขาย">Sell</option>
             <option value="ปันผล">Dividend</option>
             <option value="ดอกเบี้ย">Interest</option>
+            <option value="ฝากเงิน">Deposit / Cash In</option>
+            <option value="ถอนเงิน">Withdrawal / Cash Out</option>
            </select>
           </div>
          </div>
-         <div class="f-row three">
-          <div class="form-group"><label class="form-label">Symbol <span class="req">*</span></label><input type="text" id="fSymbol" class="form-control" placeholder="e.g. PTT, AAPL, BTC" required style="text-transform:uppercase" /></div>
+         <div class="f-row single">
+          <div class="form-group"><label class="form-label">Currency</label>
+           <select id="fCurrency" class="form-control" onchange="updateTransactionForm()">
+            <option value="USD">USD</option>
+            <option value="THB">THB</option>
+            <option value="EUR">EUR</option>
+            <option value="JPY">JPY</option>
+            <option value="GBP">GBP</option>
+           </select>
+          </div>
+         </div>
+         <div class="f-row three" id="fSecurityFields">
+          <div class="form-group"><label class="form-label">Symbol <span class="req">*</span></label><input type="text" id="fSymbol" class="form-control" placeholder="e.g. PTT, AAPL, BTC" required style="text-transform:uppercase" list="symbolDatalist" /></div>
           <div class="form-group"><label class="form-label">Full name</label><input type="text" id="fName" class="form-control" placeholder="Company / fund name" /></div>
           <div class="form-group"><label class="form-label">Yahoo Finance ticker <span class="tm">(optional)</span></label><input type="text" id="fTicker" class="form-control" placeholder="e.g. PTT.BK, AAPL, BTC-USD, GC=F" /></div>
+          <datalist id="symbolDatalist"></datalist>
          </div>
          <div class="f-row three">
           <div class="form-group"><label class="form-label">Broker / custodian <span class="tm">(optional)</span></label>
@@ -140,10 +154,11 @@
           </div>
          </div>
          <div class="f-row three">
-          <div class="form-group"><label class="form-label">Quantity <span class="req">*</span></label><input type="number" id="fQty" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
-          <div class="form-group"><label class="form-label" id="lblPrice">Price per unit (USD) <span class="req">*</span></label><input type="number" id="fPrice" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
-          <div class="form-group"><label class="form-label">Fee (USD)</label><input type="number" id="fFee" class="form-control" step="any" min="0" value="0" oninput="calcTx()" /></div>
+          <div class="form-group"><label class="form-label" id="lblQty">Quantity <span class="req">*</span></label><input type="number" id="fQty" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
+          <div class="form-group" id="fPriceGroup"><label class="form-label" id="lblPrice">Price per share (USD) <span class="req">*</span></label><input type="number" id="fPrice" class="form-control" step="any" min="0" oninput="calcTx()" required /></div>
+          <div class="form-group"><label class="form-label" id="lblFee">Fee (USD)</label><input type="number" id="fFee" class="form-control" step="any" min="0" value="0" oninput="calcTx()" /></div>
          </div>
+         <div class="form-group"><label class="form-label" id="lblTax">Tax (USD)</label><input type="number" id="fTax" class="form-control" step="any" min="0" value="0" oninput="calcTx()" /></div>
          <div class="form-group"><label class="form-label">Note</label><textarea id="fNote" class="form-control" rows="2"></textarea></div>
         </div>
        </div>
@@ -153,6 +168,7 @@
          <div class="amt-box">
           <div class="amt-row"><span>Gross</span><span id="dGross" class="fw">$0.00</span></div>
           <div class="amt-row"><span>Fee</span><span id="dFee" style="color:var(--warning)">$0.00</span></div>
+          <div class="amt-row"><span>Tax</span><span id="dTax" style="color:var(--warning)">$0.00</span></div>
           <div class="amt-row total"><span id="dNetLbl">Net</span><span id="dNet">$0.00</span></div>
          </div>
          <div id="realizedBox" style="display:none;margin-top:12px;padding:10px;background:var(--cream-dark);border-radius:8px;font-size:13px;"></div>
@@ -174,12 +190,12 @@
      <button class="btn btn-primary" onclick="navigate('new-tx')">+ New transaction</button>
     </div>
     <div class="pg-body">
-     <div class="filter-bar">
+    <div class="filter-bar">
       <div class="form-group"><label class="form-label">Search</label><input type="text" id="sQ" class="form-control" placeholder="Symbol / name" oninput="filterTx()" style="min-width:160px" /></div>
       <div class="form-group"><label class="form-label">From</label><input type="date" id="sFrom" class="form-control" onchange="filterTx()" /></div>
       <div class="form-group"><label class="form-label">To</label><input type="date" id="sTo" class="form-control" onchange="filterTx()" /></div>
       <div class="form-group"><label class="form-label">Asset type</label><select id="sType" class="form-control" onchange="filterTx()"><option value="">All</option></select></div>
-      <div class="form-group"><label class="form-label">Action</label><select id="sAction" class="form-control" onchange="filterTx()"><option value="">All</option><option value="ซื้อ">Buy</option><option value="ขาย">Sell</option><option value="ปันผล">Dividend</option><option value="ดอกเบี้ย">Interest</option></select></div>
+      <div class="form-group"><label class="form-label">Action</label><select id="sAction" class="form-control" onchange="filterTx()"><option value="">All</option><option value="ซื้อ">Buy</option><option value="ขาย">Sell</option><option value="ปันผล">Dividend</option><option value="ดอกเบี้ย">Interest</option><option value="ฝากเงิน">Deposit / Cash In</option><option value="ถอนเงิน">Withdrawal / Cash Out</option></select></div>
       <div class="form-group"><label class="form-label">Broker</label><select id="sBroker" class="form-control" onchange="filterTx()"><option value="">All</option></select></div>
       <button class="btn btn-secondary btn-sm" onclick="clearTxFilters()">Clear</button>
      </div>
@@ -236,6 +252,7 @@
        <div class="fs-title">Investor profile</div>
        <div class="form-group"><label class="form-label">Full name / account name</label><input type="text" id="stName" class="form-control" /></div>
        <div class="form-group"><label class="form-label">Address</label><textarea id="stAddr" class="form-control" rows="2"></textarea></div>
+        <div class="form-group"><label class="form-label">Price index benchmark ticker</label><input type="text" id="stBenchmarkTicker" class="form-control" placeholder="^GSPC (S&amp;P 500), ^SET.BK, or ^SET50.BK" /></div>
        <button class="btn btn-primary" onclick="saveSettings()">💾 Save settings</button>
       </div>
       <div class="card">
@@ -268,7 +285,7 @@
     </select>
    </div>
    <div class="form-group"><label class="form-label">Action</label>
-    <select id="eAction" class="form-control"><option value="ซื้อ">Buy</option><option value="ขาย">Sell</option><option value="ปันผล">Dividend</option><option value="ดอกเบี้ย">Interest</option></select>
+    <select id="eAction" class="form-control"><option value="ซื้อ">Buy</option><option value="ขาย">Sell</option><option value="ปันผล">Dividend</option><option value="ดอกเบี้ย">Interest</option><option value="ฝากเงิน">Deposit / Cash In</option><option value="ถอนเงิน">Withdrawal / Cash Out</option></select>
    </div>
   </div>
   <div class="f-row three">
@@ -280,9 +297,10 @@
    <div class="form-group"><label class="form-label">Broker / custodian</label><input type="text" id="eBroker" class="form-control" list="brokerList" /></div>
   </div>
   <div class="f-row three">
-   <div class="form-group"><label class="form-label">Quantity</label><input type="number" id="eQty" class="form-control" step="any" /></div>
+   <div class="form-group"><label class="form-label">Quantity / Amount</label><input type="number" id="eQty" class="form-control" step="any" /></div>
   <div class="form-group"><label class="form-label">Price per unit (USD)</label><input type="number" id="ePrice" class="form-control" step="any" /></div>
   <div class="form-group"><label class="form-label">Fee (USD)</label><input type="number" id="eFee" class="form-control" step="any" /></div>
+  <div class="form-group"><label class="form-label">Tax (USD)</label><input type="number" id="eTax" class="form-control" step="any" /></div>
   </div>
   <div class="form-group"><label class="form-label">Note</label><textarea id="eNote" class="form-control" rows="2"></textarea></div>
   <div class="modal-footer">

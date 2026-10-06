@@ -2,6 +2,27 @@
 
 คู่มือสำหรับตั้งค่าและรันระบบในเครื่อง รวมถึง architecture, configuration, API และการทดสอบของ Investment Tracker
 
+## Commit Message Convention
+
+ใช้รูปแบบ conventional commits เพื่อให้ชัดเจนว่าการเปลี่ยนแปลงเป็นประเภทใด:
+
+```text
+<type>(<scope>): <subject>
+```
+
+ตัวอย่าง:
+
+```text
+fix(portfolio): include snapshot cash in dashboard NAV
+feat(transactions): support cash deposits and withdrawals
+test(dashboard): add snapshot fallback regression
+```
+
+- `type` ใช้ `feat`, `fix`, `docs`, `test`, `refactor`, `chore`
+- `scope` เป็นส่วนที่เปลี่ยน เช่น `portfolio`, `transactions`, `dashboard`, `snapshots`
+- `subject` ควรเป็นคำสั่งในปัจจุบันและไม่ขึ้นต้นด้วยสรรพนาม
+- ถ้าต้องอธิบายเพิ่มเติม ใส่ body พร้อม bullet list และระบุ issue/PR ถ้ามี
+
 ## Local Development
 
 ต้องใช้ Node.js `>=22.5.0` และ npm อินเทอร์เน็ตจำเป็นสำหรับดึงข้อมูล Yahoo Finance
@@ -133,6 +154,7 @@ Yahoo Finance อาจจำกัดการเรียกหรือไม
 | `PUT` | `/settings` | Owner | Update profile settings |
 | `GET` | `/market/indicators/:ticker` | Yes | Fetch market indicators |
 | `GET` | `/market/quote/:ticker` | Yes | Fetch the current market quote |
+| `PUT` | `/market/fx-rates` | Yes | Save current currency-per-USD rates |
 | `GET` | `/snapshots` | Yes | Read portfolio performance series |
 | `POST` | `/snapshots/capture` | Yes | Capture/replace a date's portfolio snapshot |
 | `DELETE` | `/snapshots/:date` | Yes | Delete a snapshot |
@@ -163,7 +185,7 @@ Owner-only endpoints return `403` to staff accounts. Missing or invalid/expired 
 
 Returns `{ "transactions": [...] }`. `GET /transactions/brokers` returns `{ "brokers": [...] }`.
 
-`POST /transactions` requires `assetType`, `symbol`, `action`, and positive `qty`. Allowed actions are `ซื้อ`, `ขาย`, `ปันผล`, and `ดอกเบี้ย`. Optional fields: `date`, `ticker`, `name`, `broker`, `price`, `fee`, and `note`. Enter transaction prices and fees in USD; the schema does not store a per-transaction currency.
+`POST /transactions` requires `action` and positive `qty`; security transactions also require `assetType` and `symbol`. Allowed actions are `ซื้อ`, `ขาย`, `ปันผล`, `ดอกเบี้ย`, `ฝากเงิน`, and `ถอนเงิน`. `currency` defaults to USD; `fxRate` is optional and, if supplied, is USD per one unit of that currency. If omitted, the backend uses the latest rate saved by `PUT /market/fx-rates`; it returns `400` when no saved rate exists. The transaction endpoint does not fetch live quotes. Amounts, fees, and taxes use the selected transaction currency. Cash entries are stored with their original currency and revalued for dashboard USD totals using the latest saved FX rates. `netTotalInvested` uses the rate saved on the transaction.
 
 ```json
 {
@@ -216,13 +238,13 @@ Returns `201 { "transaction": {...} }`. A sell is rejected with `400` if current
 
 `GET /settings` returns `{ "settings": { "name", "address", "benchmarkTicker" } }`. Owner-only `PUT /settings` accepts any of those fields and returns `{ "ok": true }`.
 
-`GET /market/indicators/:ticker` returns `{ "data": { "ticker", "price", "rsi", "macd", "signal", "ema26", "volatility", "historicalGrowth", "pe", "fetchedAt" } }`. Add `?refresh=true` to bypass the fresh cache. `GET /market/quote/:ticker` returns `{ "quote": { "ticker", "price" } }` using a current quote. If no usable data is available, returns `502`. Live quotes for Thai stocks are converted to USD before being saved.
+`GET /market/indicators/:ticker` returns `{ "data": { "ticker", "price", "rsi", "macd", "signal", "ema26", "volatility", "historicalGrowth", "pe", "fetchedAt" } }`. Add `?refresh=true` to bypass the fresh cache. `GET /market/quote/:ticker` returns `{ "quote": { "ticker", "price" } }` using a current quote. The frontend calls this endpoint only from **↻ Fetch all current prices**, not on currency selection or transaction save. If no usable data is available, returns `502`. `PUT /market/fx-rates` accepts `{ "rates": { "THB": 36.5, "EUR": 0.92 } }`, where each rate is currency units per USD. The refresh action saves FX quotes here, converts Thai stock prices to USD, and recalculates dashboard cash and snapshots.
 
 ## Portfolio Snapshots
 
-`GET /snapshots?days=365` returns `series`, `portfolioMetrics`, `benchmarkMetrics`, and `benchmarkTicker`. Portfolio values and historical statement snapshots are stored in USD. `days` defaults to 365.
+`GET /snapshots?days=365` returns `series`, `portfolioMetrics`, `benchmarkMetrics`, and `benchmarkTicker`. Portfolio values and historical statement snapshots are stored in USD; captured snapshots also retain cash balances by native currency for later revaluation. `days` defaults to 365.
 
-`POST /snapshots/capture` accepts optional `{ "date": "YYYY-MM-DD", "benchmarkTicker": "SPY" }`. Re-capturing a date overwrites that date's snapshot. Returns `201 { "snapshot": {...} }`; returns `400` when there is no portfolio value to capture.
+`POST /snapshots/capture` accepts optional `{ "date": "YYYY-MM-DD", "benchmarkTicker": "SPY" }`. It uses the latest saved FX rates. Re-capturing a date overwrites that date's snapshot. Returns `201 { "snapshot": {...} }`; returns `400` when there is no portfolio value to capture.
 
 `DELETE /snapshots/:date` deletes a snapshot by `YYYY-MM-DD` date and returns `{ "ok": true }`, or `404` if it does not exist.
 

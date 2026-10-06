@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { portfolioTotals } = require('../services/portfolioEngine');
+const { portfolioTotals, resolveCurrencyPerUsdRates } = require('../services/portfolioEngine');
 const { computeMetrics } = require('../services/performance');
 const { getIndicatorsForTicker } = require('../services/marketData');
 
@@ -10,7 +10,7 @@ router.use(requireAuth);
 
 function getBenchmarkTicker() {
   const row = db.prepare("SELECT v FROM settings WHERE k = 'benchmarkTicker'").get();
-  return (row && row.v) || 'SPY';
+  return (row && row.v) || '^GSPC';
 }
 
 /**
@@ -22,12 +22,15 @@ function getBenchmarkTicker() {
  */
 router.post('/capture', async (req, res) => {
   const date = req.body?.date || new Date().toISOString().slice(0, 10);
-  const benchmarkTicker = (req.body?.benchmarkTicker || getBenchmarkTicker() || 'SPY').toUpperCase();
+  const benchmarkTicker = (req.body?.benchmarkTicker || getBenchmarkTicker() || '^GSPC').toUpperCase();
 
-  const allTx = db.prepare('SELECT * FROM transactions').all();
+  const allTx = db.prepare('SELECT * FROM transactions ORDER BY date ASC, id ASC').all();
   const prices = db.prepare('SELECT symbol, price FROM prices').all();
-  const { totalCost, totalMV } = portfolioTotals(allTx, prices);
-  if (totalMV <= 0) return res.status(400).json({ error: 'No portfolio value to snapshot yet' });
+  const trackingStart = db.prepare("SELECT v FROM settings WHERE k = 'cash_tracking_started_at'").get()?.v;
+  const storedFxRates = Object.fromEntries(db.prepare('SELECT currency, currency_per_usd FROM fx_rates').all().map((row) => [row.currency, row.currency_per_usd]));
+  const currentFxRates = resolveCurrencyPerUsdRates(allTx, storedFxRates);
+  const { totalCost, cashBalance, cashBalances, nav, netTotalInvested } = portfolioTotals(allTx, prices, trackingStart, currentFxRates);
+  if (nav <= 0) return res.status(400).json({ error: 'No portfolio value to snapshot yet' });
 
   let benchmarkPrice = null;
   try {
@@ -38,13 +41,15 @@ router.post('/capture', async (req, res) => {
   }
 
   db.prepare(
-    `INSERT INTO portfolio_snapshots (date, total_value, total_cost, benchmark_ticker, benchmark_price, created_at)
-     VALUES (@date, @totalMV, @totalCost, @benchmarkTicker, @benchmarkPrice, @createdAt)
-     ON CONFLICT(date) DO UPDATE SET total_value=@totalMV, total_cost=@totalCost,
-       benchmark_ticker=@benchmarkTicker, benchmark_price=@benchmarkPrice, created_at=@createdAt`
-  ).run({ date, totalMV, totalCost, benchmarkTicker, benchmarkPrice, createdAt: Date.now() });
+    `INSERT INTO portfolio_snapshots (date, total_value, total_cost, benchmark_ticker, benchmark_price, cash_balance, cash_balances_json, net_total_invested, created_at)
+     VALUES (@date, @nav, @totalCost, @benchmarkTicker, @benchmarkPrice, @cashBalance, @cashBalancesJson, @netTotalInvested, @createdAt)
+     ON CONFLICT(date) DO UPDATE SET total_value=@nav, total_cost=@totalCost,
+       benchmark_ticker=@benchmarkTicker, benchmark_price=@benchmarkPrice, cash_balance=@cashBalance,
+       cash_balances_json=@cashBalancesJson,
+       net_total_invested=@netTotalInvested, created_at=@createdAt`
+  ).run({ date, nav, totalCost, benchmarkTicker, benchmarkPrice, cashBalance, cashBalancesJson: JSON.stringify(cashBalances), netTotalInvested, createdAt: Date.now() });
 
-  res.status(201).json({ snapshot: { date, totalValue: totalMV, totalCost, benchmarkTicker, benchmarkPrice } });
+  res.status(201).json({ snapshot: { date, totalValue: nav, totalCost, cashBalance, cashBalances, netTotalInvested, benchmarkTicker, benchmarkPrice } });
 });
 
 /**
@@ -71,6 +76,8 @@ router.get('/', (req, res) => {
     date: r.date,
     portfolioValue: r.total_value,
     totalCost: r.total_cost,
+    cashBalance: r.cash_balance,
+    netTotalInvested: r.net_total_invested,
     benchmarkValue: firstBenchPrice && r.benchmark_price != null ? firstMV * (r.benchmark_price / firstBenchPrice) : null,
   }));
 

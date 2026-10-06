@@ -7,7 +7,8 @@
 - Base URL เริ่มต้น: `http://localhost:4000/api` เปลี่ยน port ได้ด้วย `PORT`
 - Request/response ใช้ JSON และ `Content-Type: application/json` ยกเว้น download ของ Smart-DCA training data
 - วันที่ใช้รูปแบบ `YYYY-MM-DD`; `created_at`, `updated_at`, `capturedAt` เป็น Unix milliseconds เว้นแต่ระบุเป็น ISO timestamp
-- จำนวนเงินใน transaction, ตาราง `prices` และ portfolio snapshot ถูกแอปตีความเป็น USD; schema ไม่เก็บ currency แยกต่อ transaction หรือราคา
+- Transaction เก็บ `currency` และจำนวนเงินต้นฉบับ; `fx_rate` เป็น USD ต่อหนึ่งหน่วยสกุลเงิน ณ วันที่ทำรายการ. `prices`, `totalMV` และ `nav` แสดงเป็น USD
+- Cash ledger และ snapshot เก็บยอดเงินสดแยกตามสกุลเงิน; `cashBalance`/`nav` แปลงยอดเหล่านั้นเป็น USD ด้วย FX rate ล่าสุด. `netTotalInvested` ยังคงใช้ FX rate ณ วันที่ฝาก/ถอน
 - Market quote ใช้สกุลเงินตาม ticker และ API ไม่ทำ FX conversion อัตโนมัติ; หน้า Holdings แปลง quote หุ้นไทยก่อนบันทึก แต่ Smart-DCA `fetchLive=true` ยังบันทึกราคา indicator โดยตรง
 - Backend ใช้ SQLite; routes เข้าถึงฐานข้อมูลโดยตรงและมี error handler กลางสำหรับ unexpected errors
 - CORS ใช้รายการ comma-separated จาก `CORS_ORIGINS`; ถ้าไม่กำหนด จะอนุญาตทุก origin
@@ -50,6 +51,7 @@ Endpoint owner-only: `PUT /api/settings` และ `GET /api/dca/v2/training-dat
 | GET, PUT | `/api/settings` | Yes / Owner | อ่าน settings / แก้ไข settings |
 | GET | `/api/market/indicators/:ticker` | Yes | Market indicators และราคา |
 | GET | `/api/market/quote/:ticker` | Yes | Quote ปัจจุบัน |
+| PUT | `/api/market/fx-rates` | Yes | บันทึก FX rates ล่าสุดสำหรับสถิติ |
 | GET | `/api/snapshots` | Yes | Historical portfolio/benchmark series |
 | POST | `/api/snapshots/capture` | Yes | สร้างหรือแทน snapshot ของวัน |
 | DELETE | `/api/snapshots/:date` | Yes | ลบ snapshot ของวัน |
@@ -89,7 +91,7 @@ Response `200`: `{ "user": { "id", "username", "role", "name" } }`. คืน `4
 
 ## Transactions
 
-ทุก transaction response ใช้ field จาก SQLite แบบ `snake_case`: `id`, `date`, `asset_type`, `action`, `symbol`, `ticker`, `name`, `broker`, `qty`, `price`, `fee`, `note`, `created_by`, `created_at`.
+ทุก transaction response ใช้ field แบบ `snake_case`: `id`, `date`, `asset_type`, `action`, `symbol`, `ticker`, `name`, `broker`, `qty`, `price`, `fee`, `tax`, `currency`, `fx_rate`, `note`, `created_by`, `created_at`. สำหรับรายการ non-USD ที่เพิ่มตรง SQLite และมี `fx_rate` เป็นค่า default `1`, `GET /api/transactions` ส่ง FX rate ล่าสุดที่บันทึกกลับเป็น fallback โดยไม่เขียนทับข้อมูลเดิม; dashboard ใช้ fallback เดียวกันกับ `netTotalInvested`. เนื่องจากระบบไม่ทราบเรทในวันที่ทำรายการ กรณีนี้จึงเป็นการประมาณ ไม่ใช่ FX rate ย้อนหลัง
 
 ### `GET /api/transactions`
 
@@ -111,7 +113,9 @@ Response: `{ "brokers": ["Dime", "Broker B"] }` เรียงตามตั�
 
 ### `POST /api/transactions`
 
-Request ต้องมี `assetType`, `symbol`, `action` และ `qty > 0`; `action` ที่ schema รองรับคือ `ซื้อ`, `ขาย`, `ปันผล`, `ดอกเบี้ย`. Optional fields: `date`, `ticker`, `name`, `broker`, `price`, `fee`, `note`.
+หุ้นต้องมี `assetType`, `symbol`, `action` และ `qty > 0`; action ที่รองรับคือ `ซื้อ`, `ขาย`, `ปันผล`, `ดอกเบี้ย`, `ฝากเงิน`, `ถอนเงิน`. เงินเข้า/ออกใช้ `qty` เป็นจำนวนเงิน ไม่ต้องส่ง symbol/assetType และ backend จะบันทึกเป็นบัญชี `CASH` โดยมี price = 1. ค่าธรรมเนียม `fee` และภาษี `tax` เก็บแยกกัน โดยทั้งสองค่าต้องไม่ติดลบ.
+
+`currency` default เป็น `USD`; `fxRate` เป็น optional และถ้าส่งมาจะหมายถึง USD ต่อหนึ่งหน่วยของ currency (ตัวอย่าง THB/USD = 0.0274). หากไม่ส่ง backend ใช้เรทล่าสุดที่บันทึกผ่าน `PUT /api/market/fx-rates`; ถ้ายังไม่มีเรทจะคืน `400` ให้กด **↻ Fetch all current prices** ก่อน. Endpoint บันทึก transaction ไม่เรียก quote API. Cash transaction คงจำนวนเงินในสกุลเดิมไว้สำหรับ ledger; dashboard แปลงยอด cash สุทธิเป็น USD ด้วยเรทล่าสุด. `netTotalInvested` ใช้ `fxRate` ที่บันทึกกับรายการ.
 
 ```json
 {
@@ -125,11 +129,12 @@ Request ต้องมี `assetType`, `symbol`, `action` และ `qty > 0`; 
   "qty": 1.5,
   "price": 220,
   "fee": 0.01,
+  "tax": 0,
   "note": ""
 }
 ```
 
-ส่ง `date` ปัจจุบันเมื่อไม่ระบุ, แปลง `symbol` เป็นตัวพิมพ์ใหญ่ และ default `price`/`fee` เป็น `0`. การขายจะถูกปฏิเสธด้วย `400` หากจำนวนที่ถือไม่พอ เมื่อสร้าง transaction ระบบอัปเดตตาราง `prices` ของ symbol ด้วย `price` จาก request ด้วย Success `201`: `{ "transaction": {...} }`.
+ต้องส่งวันที่ `YYYY-MM-DD`; ระบบแปลง `symbol` เป็นตัวพิมพ์ใหญ่และอัปเดตตาราง `prices` เฉพาะรายการหลักทรัพย์. การขายถูกปฏิเสธด้วย `400` หากจำนวนที่ถือไม่พอ. ตัวอย่างเงินฝาก: `{ "date":"2026-10-06", "action":"ฝากเงิน", "qty":100, "fee":0, "tax":0 }`. Success `201`: `{ "transaction": {...} }`.
 
 ### `PUT /api/transactions/:id`
 
@@ -157,7 +162,7 @@ Request `{ "price": 123.45 }`. บันทึก/แทนราคาของ
 
 ### `GET /api/holdings/dashboard`
 
-Response fields: `totalCost`, `totalMV`, `unrealizedPL`, `unrealizedPct`, `realizedThisYear`, `divThisYear`, `assetCount`, `recentTransactions`, `byType`, `asOfDate`. เมื่อมี holdings ค่ามาจาก holdings ปัจจุบัน; เมื่อไม่มี holdings ใช้ snapshot ล่าสุดเป็น fallback
+Response fields: `totalCost`, `totalMV` (มูลค่าหุ้น), `cashBalance`, `nav` (หุ้น + เงินสด), `netTotalInvested` (เงินฝากลบเงินถอนนับจากวันที่เปิด cash ledger), `unrealizedPL`, `unrealizedPct`, `realizedThisYear`, `divThisYear`, `priceIrr`, `benchmarkTicker`, `benchmarkReturn`, `stockWinRate`, `assetCount`, `recentTransactions`, `byType`, `asOfDate`. Cash ledger เริ่มนับตั้งแต่เปิดใช้ schema ใหม่; ธุรกรรมเดิมไม่ถูกตีความเป็นรายการเงินสดโดยอัตโนมัติ จึงควรบันทึกยอดเงินสดคงเหลือ ณ วันเริ่มใช้งานเป็น Deposit เพื่อให้ NAV ตรงกับบัญชีจริง. `netTotalInvested` ก่อนวันเปิด ledger ไม่มีข้อมูลย้อนหลังและไม่ควรตีความเป็นเงินต้นสะสมตลอดอายุพอร์ต.
 
 ## DCA
 
@@ -238,13 +243,17 @@ Response `{ "data": { "ticker", "price", "rsi", "macd", "signal", "ema26", "vola
 
 ดึง quote ล่าสุดโดยตรง ไม่ใช้ indicator cache และไม่แปลงสกุลเงิน. Response `{ "quote": { "ticker": "THB=X", "price": 33.5 } }`; `price` อยู่ในสกุลเงินที่ Yahoo Finance ใช้กับ ticker นั้น หาก quote ใช้ไม่ได้คืน `502`.
 
-ปุ่ม refresh prices บน Dashboard และ Holdings ใช้ frontend flow เดียวกัน: ดึงอัตรา `THB=X`, แปลงราคา ticker หุ้นไทยเป็น USD, บันทึกผ่าน `PUT /api/holdings/:symbol/price` และเมื่อมีราคาเปลี่ยนจะเรียก `POST /api/snapshots/capture`. ในทางกลับกัน `GET /api/dca/v2?fetchLive=true` บันทึกราคา indicator ที่ดึงมาโดยตรงโดยไม่แปลง FX จึงไม่ควรใช้ flow นี้ refresh ราคาหุ้นไทยในฐานข้อมูลที่แอปตีความเป็น USD.
+### `PUT /api/market/fx-rates`
+
+บันทึกเรทในรูปแบบหน่วย currency ต่อ 1 USD เช่น `{ "rates": { "THB": 36.5, "EUR": 0.92 } }`. รองรับ `THB`, `EUR`, `JPY`, `GBP` และ `USD` (ซึ่งต้องเป็น `1`). Response `{ "rates": {...} }`.
+
+ปุ่ม **↻ Fetch all current prices** บน Dashboard และ Holdings เป็นจุดเดียวที่ frontend ขอ live FX quotes: ส่งเรทผ่าน `PUT /api/market/fx-rates`, แปลงราคา ticker หุ้นไทยเป็น USD, บันทึกผ่าน `PUT /api/holdings/:symbol/price` และ capture snapshot เมื่อมีการอัปเดตราคา/FX. การเลือก currency และการ Save transaction ไม่เรียก quote API; transaction ใช้เรทล่าสุดที่บันทึกไว้. Snapshot เก็บ cash balances แยกสกุล จึงตีมูลค่า cash ใหม่ได้เมื่อเรท USD เปลี่ยน. ในทางกลับกัน `GET /api/dca/v2?fetchLive=true` บันทึกราคา indicator ที่ดึงมาโดยตรงโดยไม่แปลง FX จึงไม่ควรใช้ flow นี้ refresh ราคาหุ้นไทยในฐานข้อมูลที่แอปตีความเป็น USD.
 
 ## Portfolio Snapshots
 
 ### `POST /api/snapshots/capture`
 
-Request optional: `{ "date": "2026-10-06", "benchmarkTicker": "SPY" }`. ค่า default date คือวันปัจจุบันและ benchmark คือ setting `benchmarkTicker` หรือ `SPY`. คำนวณมูลค่าจาก transactions กับราคาที่บันทึกไว้ ไม่ได้ดึงราคาใหม่หรือแปลง FX; บันทึกไม่เกินหนึ่งแถวต่อวัน โดย capture ซ้ำจะเขียนทับวันเดิม
+Request optional: `{ "date": "2026-10-06", "benchmarkTicker": "SPY" }`. ค่า default date คือวันปัจจุบันและ benchmark คือ setting `benchmarkTicker` หรือ `SPY`. คำนวณมูลค่าจาก transactions, ราคาที่บันทึกไว้ และ FX rates ล่าสุด; บันทึกยอด cash แยกสกุลและไม่เกินหนึ่งแถวต่อวัน โดย capture ซ้ำจะเขียนทับวันเดิม
 
 Response `201`:
 
@@ -254,6 +263,8 @@ Response `201`:
     "date": "2026-10-06",
     "totalValue": 12500,
     "totalCost": 11000,
+    "cashBalance": 1500,
+    "cashBalances": { "USD": 1000, "THB": 18250 },
     "benchmarkTicker": "SPY",
     "benchmarkPrice": 500
   }
@@ -264,7 +275,7 @@ Response `201`:
 
 ### `GET /api/snapshots?days=365`
 
-`days` default `365`. คืน `{ "series", "portfolioMetrics", "benchmarkMetrics", "benchmarkTicker" }`. แต่ละ series item มี `date`, `portfolioValue`, `totalCost`, `benchmarkValue`; benchmark ถูก normalize ให้เริ่มจาก portfolio value จุดแรก. Metrics มี `cumReturn`, `vol`, `sharpe`, `maxDrawdown`, `points`; ถ้าข้อมูลไม่พอ metrics คืนค่า 0 ตามจำนวน points
+`days` default `365`. คืน `{ "series", "portfolioMetrics", "benchmarkMetrics", "benchmarkTicker" }`. แต่ละ series item มี `date`, `portfolioValue` (NAV), `totalCost`, `cashBalance`, `netTotalInvested`, `benchmarkValue`; benchmark ถูก normalize ให้เริ่มจาก NAV จุดแรก. ค่า benchmark เริ่มต้นคือ `^GSPC` (S&P 500 price index). Metrics มี `cumReturn`, `vol`, `sharpe`, `maxDrawdown`, `points`; ถ้าข้อมูลไม่พอ metrics คืนค่า 0 ตามจำนวน points
 
 Endpoint นี้ส่ง snapshots ทั้งหมดในช่วงวันที่ที่ร้องขอโดยไม่กรองตามรอบรายเดือน. การเลือกจุดบนกราฟเป็น frontend behavior: snapshots และ marker ก่อนเดือน ต.ค. 2026 แสดงตามเดิม โดย `2026-09-30` ยังคงเป็น marker บนเส้นและเป็นจุดตั้งต้น; รอบ marker รายเดือนใหม่เริ่ม `2026-10-28` แล้วใช้วันที่ 28 ของแต่ละเดือน. Snapshot ล่าสุดตั้งแต่จุดเริ่มต้นจะแสดง marker ทึบแบบเดียวกับ `2026-09-30` ที่ปลายขวาสุดของกราฟ
 

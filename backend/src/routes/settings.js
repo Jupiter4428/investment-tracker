@@ -9,7 +9,7 @@ router.get('/', (req, res) => {
   const rows = db.prepare('SELECT k, v FROM settings').all();
   const cfg = {};
   rows.forEach((r) => (cfg[r.k] = r.v));
-  res.json({ settings: { name: cfg.name || '', address: cfg.address || '', benchmarkTicker: cfg.benchmarkTicker || 'SPY' } });
+  res.json({ settings: { name: cfg.name || '', address: cfg.address || '', benchmarkTicker: cfg.benchmarkTicker || '^GSPC' } });
 });
 
 router.put('/', requireOwner, (req, res) => {
@@ -19,7 +19,7 @@ router.put('/', requireOwner, (req, res) => {
   );
   stmt.run('name', (name || '').trim());
   stmt.run('address', (address || '').trim());
-  if (benchmarkTicker !== undefined) stmt.run('benchmarkTicker', (benchmarkTicker || 'SPY').trim().toUpperCase());
+  if (benchmarkTicker !== undefined) stmt.run('benchmarkTicker', (benchmarkTicker || '^GSPC').trim().toUpperCase());
   res.json({ ok: true });
 });
 

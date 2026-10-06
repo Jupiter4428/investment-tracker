@@ -1,7 +1,8 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { computeHoldings, realizedForSell, resolveDashboardTotals } = require('../services/portfolioEngine');
+const { cashBalancesToUsd, computeCashBalances, computeHoldings, computeNetTotalInvested, mergeCashBalances, realizedForSell, resolveCurrencyPerUsdRates, resolveDashboardSnapshotValue } = require('../services/portfolioEngine');
+const { computeStockWinRate, computeXirr } = require('../services/performance');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -14,6 +15,15 @@ function priceMap() {
   const m = {};
   rows.forEach((r) => (m[r.symbol] = r.price));
   return m;
+}
+function snapshotCashBalances(snapshot) {
+  if (snapshot?.cashBalancesJson) {
+    try {
+      const balances = JSON.parse(snapshot.cashBalancesJson);
+      if (balances && typeof balances === 'object' && Object.keys(balances).length) return balances;
+    } catch { /* legacy snapshot without native-currency balances */ }
+  }
+  return snapshot ? { USD: Number(snapshot.cashBalance || 0) } : {};
 }
 
 function holdingsWithMarketValue() {
@@ -49,13 +59,28 @@ router.put('/:symbol/price', (req, res) => {
 router.get('/dashboard', (req, res) => {
   const list = holdingsWithMarketValue();
   const latestSnapshot = db.prepare(
-    'SELECT date, total_value AS totalValue, total_cost AS totalCost FROM portfolio_snapshots ORDER BY date DESC LIMIT 1'
+    'SELECT date, total_value AS totalValue, total_cost AS totalCost, cash_balance AS cashBalance, cash_balances_json AS cashBalancesJson, net_total_invested AS netTotalInvested, created_at AS createdAt FROM portfolio_snapshots ORDER BY date DESC LIMIT 1'
   ).get();
-  const { totalCost, totalMV, asOfDate } = resolveDashboardTotals(list, latestSnapshot);
-  const unrealizedPL = totalMV - totalCost;
-
   const thisYear = String(new Date().getFullYear());
   const txs = allTx();
+  const trackingStart = db.prepare("SELECT v FROM settings WHERE k = 'cash_tracking_started_at'").get()?.v;
+  const snapshotBase = resolveDashboardSnapshotValue(list, latestSnapshot, 0);
+  const source = snapshotBase.source;
+  const cashTransactions = latestSnapshot && source === 'snapshot'
+    ? txs.filter((t) => t.date > latestSnapshot.date || (t.date === latestSnapshot.date && t.created_at > latestSnapshot.createdAt))
+    : txs;
+  const balances = source === 'snapshot'
+    ? mergeCashBalances(snapshotCashBalances(latestSnapshot), computeCashBalances(cashTransactions, undefined, trackingStart))
+    : computeCashBalances(txs, undefined, trackingStart);
+  const storedFxRates = Object.fromEntries(db.prepare('SELECT currency, currency_per_usd FROM fx_rates').all().map((row) => [row.currency, row.currency_per_usd]));
+  const currentFxRates = resolveCurrencyPerUsdRates(txs, storedFxRates);
+  const cashBalance = cashBalancesToUsd(balances, currentFxRates);
+  const { totalCost, totalMV, asOfDate, source: resolvedSource } = snapshotBase;
+  const nav = totalMV + cashBalance;
+  const unrealizedPL = totalMV - totalCost;
+  const netTotalInvested = resolvedSource === 'snapshot'
+    ? Number(latestSnapshot.netTotalInvested || 0) + computeNetTotalInvested(cashTransactions, undefined, trackingStart, currentFxRates)
+    : computeNetTotalInvested(txs, undefined, trackingStart, currentFxRates);
   const sells = txs.filter((t) => t.action === 'ขาย' && t.date.startsWith(thisYear));
   const bySymbol = {};
   txs.forEach((t) => {
@@ -64,7 +89,30 @@ router.get('/dashboard', (req, res) => {
   const realizedThisYear = sells.reduce((s, t) => s + realizedForSell(bySymbol[t.symbol] || [], t), 0);
   const divThisYear = txs
     .filter((t) => (t.action === 'ปันผล' || t.action === 'ดอกเบี้ย') && t.date.startsWith(thisYear))
-    .reduce((s, t) => s + t.qty * t.price, 0);
+    .reduce((s, t) => s + t.qty * t.price - (t.fee || 0) - (t.tax || 0), 0);
+
+  const valuationDate = asOfDate || new Date().toISOString().slice(0, 10);
+  const priceCashFlows = txs
+    .filter((t) => t.date <= valuationDate && (t.action === 'ซื้อ' || t.action === 'ขาย'))
+    .map((t) => ({
+      date: t.date,
+      amount: t.action === 'ซื้อ'
+        ? -(t.qty * t.price + t.fee + (t.tax || 0))
+        : t.qty * t.price - t.fee - (t.tax || 0),
+    }));
+  if (source !== 'snapshot' && totalMV > 0) priceCashFlows.push({ date: valuationDate, amount: totalMV });
+  const priceIrr = computeXirr(priceCashFlows);
+
+  const benchmarkTicker = (db.prepare("SELECT v FROM settings WHERE k = 'benchmarkTicker'").get()?.v || '^GSPC').toUpperCase();
+  const benchmarkRows = db.prepare(
+    'SELECT date, benchmark_price FROM portfolio_snapshots WHERE benchmark_ticker = ? AND benchmark_price > 0 ORDER BY date ASC'
+  ).all(benchmarkTicker);
+  const firstBenchmark = benchmarkRows[0];
+  const lastBenchmark = benchmarkRows.at(-1);
+  const benchmarkReturn = benchmarkRows.length > 1 && lastBenchmark.date > firstBenchmark.date
+    ? (lastBenchmark.benchmark_price / firstBenchmark.benchmark_price - 1) * 100
+    : null;
+  const stockWinRate = computeStockWinRate(list);
 
   const recent = txs.slice().sort((a, b) => (b.date < a.date ? -1 : b.date > a.date ? 1 : b.id < a.id ? -1 : 1)).slice(0, 8);
 
@@ -76,10 +124,17 @@ router.get('/dashboard', (req, res) => {
   res.json({
     totalCost,
     totalMV,
+    cashBalance,
+    nav,
+    netTotalInvested,
     unrealizedPL,
     unrealizedPct: totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0,
     realizedThisYear,
     divThisYear,
+    priceIrr,
+    benchmarkTicker,
+    benchmarkReturn,
+    stockWinRate,
     assetCount: list.length,
     recentTransactions: recent,
     byType,

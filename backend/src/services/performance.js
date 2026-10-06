@@ -52,4 +52,56 @@ function computeMetrics(series, periodsPerYear = 252) {
   };
 }
 
-module.exports = { computeMetrics, dailyReturns, stdev, maxDrawdown };
+function computeXirr(cashFlows) {
+  const flows = cashFlows
+    .filter((flow) => Number.isFinite(flow.amount) && Number.isFinite(Date.parse(flow.date)))
+    .map((flow) => ({ ...flow, timestamp: Date.parse(`${flow.date}T00:00:00Z`) }))
+    .filter((flow) => Number.isFinite(flow.timestamp));
+  if (!flows.some((flow) => flow.amount < 0) || !flows.some((flow) => flow.amount > 0)) return null;
+
+  const start = Math.min(...flows.map((flow) => flow.timestamp));
+  const npv = (rate) => flows.reduce((sum, flow) => {
+    const years = (flow.timestamp - start) / (365 * 86400000);
+    return sum + flow.amount / ((1 + rate) ** years);
+  }, 0);
+  const rates = [-0.9999, -0.99, -0.95, -0.9, -0.75, -0.5, -0.25, 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 100, 10000];
+
+  for (let index = 1; index < rates.length; index++) {
+    let low = rates[index - 1];
+    let high = rates[index];
+    let lowValue = npv(low);
+    const highValue = npv(high);
+    if (lowValue === 0) return low * 100;
+    if (highValue === 0) return high * 100;
+    if (Math.sign(lowValue) === Math.sign(highValue)) continue;
+
+    for (let iteration = 0; iteration < 100; iteration++) {
+      const mid = (low + high) / 2;
+      const midValue = npv(mid);
+      if (Math.abs(midValue) < 1e-10) return mid * 100;
+      if (Math.sign(midValue) === Math.sign(lowValue)) {
+        low = mid;
+        lowValue = midValue;
+      } else {
+        high = mid;
+      }
+    }
+    return ((low + high) / 2) * 100;
+  }
+
+  return null;
+}
+
+function computeStockWinRate(holdings) {
+  const stocks = holdings.filter((holding) => (
+    holding.assetType === 'หุ้นไทย' || holding.assetType === 'หุ้นต่างประเทศ'
+  ));
+  const winners = stocks.filter((holding) => holding.unrealizedPL > 0).length;
+  return {
+    winners,
+    total: stocks.length,
+    rate: stocks.length ? (winners / stocks.length) * 100 : null,
+  };
+}
+
+module.exports = { computeMetrics, computeStockWinRate, computeXirr, dailyReturns, stdev, maxDrawdown };

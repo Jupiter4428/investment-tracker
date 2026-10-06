@@ -70,6 +70,7 @@ const API = {
 
   marketIndicators: (ticker, refresh) => api(`/market/indicators/${encodeURIComponent(ticker)}${refresh ? '?refresh=true' : ''}`),
   marketQuote: (ticker) => api(`/market/quote/${encodeURIComponent(ticker)}`),
+  updateFxRates: (rates) => api('/market/fx-rates', { method: 'PUT', body: { rates } }),
 
   captureSnapshot: (date, benchmarkTicker) => api('/snapshots/capture', { method: 'POST', body: { date, benchmarkTicker } }),
   listSnapshots: (days) => api('/snapshots?days=' + (days || 180)),

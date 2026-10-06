@@ -12,11 +12,13 @@
 - Risk gate แสดง `PASS`, `CAUTION`, `REVIEW` หรือ `BLOCK`; เมื่อข้อมูลไม่ครบจะไม่จัดสรรเงิน
 - `STOP_BUY` เมื่อถึง hard max และ `NOT_IN_TARGET` สำหรับสินทรัพย์ที่ไม่ได้เลือกเข้าแผน DCA โดยไม่มี auto-sell
 - Constrained allocation เคารพงบ, hard max และ single-stock cap
-- บันทึก transactions, holdings, prices, settings และ portfolio snapshots
+- บันทึกธุรกรรมซื้อ/ขาย/ปันผล/ดอกเบี้ย/ฝาก/ถอน โดยเก็บสกุลเงินและจำนวนเงินต้นฉบับของแต่ละรายการ
 - ดึงราคาและ indicators จาก Yahoo Finance พร้อม cache และ manual fallback
-- รีเฟรชราคาตลาดของ holdings ที่มี ticker ทั้งหมดจาก Dashboard หรือ Holdings และบันทึก snapshot เมื่อมีราคาเปลี่ยน
+- รีเฟรชราคาตลาดและ FX rates จาก Dashboard หรือ Holdings; บันทึก snapshot เมื่อราคา หรือ FX rates เปลี่ยน
+- การดึง FX quote ทำผ่านปุ่ม **↻ Fetch all current prices** เท่านั้น; transaction ใช้เรทล่าสุดที่บันทึกไว้และไม่แสดงช่อง FX rate
 - Export Smart-DCA training samples เป็น JSONL ได้โดย owner; outcome ยังเป็น `null` ไม่ใช่ผลตอบแทนที่สังเกตจริง
 - Dashboard แสดงมูลค่าพอร์ตและ historical snapshots จาก statement
+- Cash ledger และ snapshots เก็บยอดเงินสดแยกตามสกุล; Dashboard แปลงยอด cash เป็น USD ด้วย FX rate ล่าสุด ทำให้ NAV สะท้อนการเปลี่ยนแปลงของค่าเงิน ส่วน `netTotalInvested` ใช้เรท ณ วันที่ฝาก/ถอน
 
 ## Using the App
 
@@ -64,14 +66,16 @@ Composite score คือผลรวมคะแนนถ่วงน้ำห�
 
 ### Portfolio History
 
-Historical statements จาก KKP Dime จำนวน 11 จุดถูกเก็บเป็น month-end snapshots ในหน่วย USD โดยแปลงจาก THB ด้วยอัตรา USD/THB ใกล้วันรายงาน ข้อมูลไม่ได้ถูกแปลงเป็น transactions เพราะเอกสารไม่ได้ระบุรายการซื้อขายครบถ้วน Dashboard และกราฟแสดงมูลค่าเป็น USD เมื่อกด refresh prices จาก Dashboard หรือ Holdings ระบบจะแปลง quote ของหุ้นไทยด้วย `THB=X` ก่อนบันทึกราคา และสร้าง snapshot ของวันเมื่อมีราคาเปลี่ยน อย่างไรก็ตาม `GET /market/quote/:ticker` คืนราคาตามสกุลของ ticker และ Smart-DCA ที่เรียกด้วย `fetchLive=true` ยังบันทึกราคา indicator โดยไม่แปลง FX; อย่าใช้เส้นทาง Smart-DCA นี้รีเฟรชราคาหุ้นไทยในฐานข้อมูล USD จนกว่าจะเพิ่มการแปลงสกุลเงิน
+Historical statements จาก KKP Dime จำนวน 11 จุดถูกเก็บเป็น month-end snapshots ในหน่วย USD โดยแปลงจาก THB ด้วยอัตรา USD/THB ใกล้วันรายงาน ข้อมูลไม่ได้ถูกแปลงเป็น transactions เพราะเอกสารไม่ได้ระบุรายการซื้อขายครบถ้วน Dashboard และกราฟแสดงมูลค่าเป็น USD ธุรกรรม cash ใหม่เก็บยอดต้นฉบับพร้อม currency; เมื่อ refresh prices ระบบจะอัปเดต FX rates และตีมูลค่า cash ใหม่ใน USD รวมถึงแปลง quote หุ้นไทยด้วย `THB=X` ก่อนบันทึกราคา อย่างไรก็ตาม `GET /market/quote/:ticker` คืนราคาตามสกุลของ ticker และ Smart-DCA ที่เรียกด้วย `fetchLive=true` ยังบันทึกราคา indicator โดยไม่แปลง FX; อย่าใช้เส้นทาง Smart-DCA นี้รีเฟรชราคาหุ้นไทยในฐานข้อมูล USD
+
+ก่อนบันทึก transaction ที่ไม่ใช่ USD ให้กด **↻ Fetch all current prices** อย่างน้อยหนึ่งครั้ง เพื่อให้ระบบมี FX rate ล่าสุดในฐานข้อมูล การกด Save จะไม่เรียก Yahoo Finance เอง
 
 กราฟ Portfolio value history คง snapshots และ marker ก่อนเดือน ต.ค. 2026 ตามเดิม โดยปักวันที่ 30 ก.ย. ไว้บนเส้นเป็นจุดตั้งต้นของรอบใหม่ จากนั้นเริ่มปัก marker รายเดือนในวันที่ 28 ต.ค. และทุกวันที่ 28 ของเดือนถัดไป เมื่อ refresh ราคาในวันอื่น กราฟจะต่อเส้นถึง snapshot ล่าสุดและแสดง marker ทึบแบบเดียวกับจุด 30 ก.ย. ที่ปลายขวาสุด
 
 ## ข้อจำกัดและแนวทางต่อยอด
 
-ข้อมูลราคาจาก Yahoo Finance อาจล่าช้าหรือไม่มีสำหรับบาง ticker ระบบจึงใช้ cache/manual data และให้ `REVIEW` เมื่อข้อมูลตลาดไม่พอ ปัจจุบัน transactions ใช้ USD และยังไม่มีช่องเก็บ currency แยก หากสลิปเป็นสกุลอื่นให้แปลงราคาและค่าธรรมเนียมเป็น USD ก่อนบันทึก ราคาหุ้นไทยจากการดึง live จะถูกแปลงเป็น USD ด้วยอัตราปัจจุบัน ส่วนค่าธุรกรรมเดิมที่บันทึกก่อนหน้านี้ไม่สามารถตรวจสกุลเงินย้อนหลังได้อย่างแน่นอน
+ข้อมูลราคาจาก Yahoo Finance อาจล่าช้าหรือไม่มีสำหรับบาง ticker ระบบจึงใช้ cache/manual data และให้ `REVIEW` เมื่อข้อมูลตลาดไม่พอ ธุรกรรมใหม่เก็บ currency และ FX rate; cash คงยอด native currency แล้วแปลงเป็น USD ด้วยเรทล่าสุดที่ refresh ส่วนต้นทุนหลักทรัพย์แปลงด้วยเรทของวันที่ทำรายการ ข้อมูลเก่าที่ไม่มี currency metadata จะถูกตีความเป็น USD เพราะไม่สามารถตรวจสกุลเงินย้อนหลังได้อย่างแน่นอน หากเพิ่มรายการสกุลเงินต่างประเทศลง SQLite โดยตรงและปล่อย `fx_rate` เป็นค่าเริ่มต้น `1` ระบบจะใช้ FX rate ล่าสุดที่บันทึกเป็น fallback สำหรับสถิติและการแสดงผล ซึ่งไม่ใช่เรท ณ วันที่ทำรายการ แนะนำให้สร้างรายการผ่าน API เพื่อบันทึกเรทให้ถูกต้อง
 
-การนำเข้า/ส่งออก transaction และการรองรับหลายสกุลเงินเป็นแนวทางต่อยอดที่ยังไม่มีในระบบ รายละเอียดการประเมินฟีเจอร์อยู่ใน [บันทึกเปรียบเทียบ Getquin Portfolio Exporter](docs/getquin-exporter-comparison.md)
+การนำเข้า/ส่งออก transaction ยังไม่มีในระบบ หากพัฒนาต่อควรรักษา `currency` และ `fx_rate` ของแต่ละรายการไว้ รายละเอียดการเปรียบเทียบอยู่ใน [บันทึกเปรียบเทียบ Getquin Portfolio Exporter](docs/getquin-exporter-comparison.md)
 
 ผลคำนวณเป็นข้อมูลประกอบการติดตามพอร์ต ไม่ใช่คำแนะนำการลงทุนหรือภาษี

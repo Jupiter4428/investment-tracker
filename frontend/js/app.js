@@ -6,12 +6,12 @@ const ASSET_TYPES = [
   ['หุ้นต่างประเทศ', 'Foreign stocks'],
   ['กองทุนรวม', 'Mutual funds'],
   ['คริปโต', 'Crypto'],
-  ['ทองคำ', 'Gold'],
-  ['พันธบัตร/ตราสารหนี้', 'Bonds / fixed income'],
+  ['ทอง', 'Gold'],
+  ['พันธบัตร/หนี้ระยะสั้น', 'Bonds / fixed income'],
   ['อื่นๆ', 'Other'],
 ];
 const ASSET_TYPE_LABELS = Object.fromEntries(ASSET_TYPES);
-const ACTION_LABELS = { 'ซื้อ': 'Buy', 'ขาย': 'Sell', 'ปันผล': 'Dividend', 'ดอกเบี้ย': 'Interest', 'ฝากเงิน': 'Deposit / Cash In', 'ถอนเงิน': 'Withdrawal / Cash Out' };
+const ACTION_LABELS = { ซื้อ: 'Buy', ขาย: 'Sell', ปันผล: 'Dividend', ดอกเบี้ย: 'Interest', ฝากเงิน: 'Deposit / Cash In', ถอนเงิน: 'Withdrawal / Cash Out' };
 
 function fmt(value) {
   return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -93,7 +93,7 @@ async function showApp() {
   if (u) {
     document.getElementById('sbAv').textContent = u.name.charAt(0);
     document.getElementById('sbName').textContent = u.name;
-    document.getElementById('sbRole').textContent = u.role === 'owner' ? '🔑 Owner' : '👤 Staff';
+    document.getElementById('sbRole').textContent = u.role === 'owner' ? 'Owner' : 'Staff';
     if (u.role !== 'owner') document.querySelectorAll('.owner-only').forEach((el) => (el.style.display = 'none'));
   }
   try {
@@ -175,7 +175,7 @@ async function loadDividendHoldingOptions() {
 
 function applyDividendHoldingSelection() {
   const action = document.getElementById('fAction').value;
-  if (action !== 'ปันผล') return;
+  if (action !== 'เธเธฑเธเธเธฅ') return;
   const value = String(document.getElementById('fSymbol').value || '').trim().toUpperCase();
   const match = dividendHoldingOptions.find((h) => String(h.symbol || '').trim().toUpperCase() === value);
   if (!match) return;
@@ -187,8 +187,8 @@ function applyDividendHoldingSelection() {
 
 function updateTransactionForm() {
   const action = document.getElementById('fAction').value;
-  if (action === 'ปันผล') loadDividendHoldingOptions();
-  const isCashFlow = action === 'ฝากเงิน' || action === 'ถอนเงิน';
+  if (action === 'เธเธฑเธเธเธฅ') loadDividendHoldingOptions();
+  const isCashFlow = action === 'เธเธฒเธเน€เธเธดเธ' || action === 'เธ–เธญเธเน€เธเธดเธ';
   const currency = document.getElementById('fCurrency').value || 'USD';
   document.getElementById('fAssetGroup').hidden = isCashFlow;
   document.getElementById('fSecurityFields').hidden = isCashFlow;
@@ -236,7 +236,7 @@ function calcTx() {
   const currencyPerUsd = liveFxRates[currency];
   const hasFxRate = Number.isFinite(currencyPerUsd) && currencyPerUsd > 0;
   const qty = parseFloat(document.getElementById('fQty').value) || 0;
-  const price = action === 'ฝากเงิน' || action === 'ถอนเงิน' ? 1 : parseFloat(document.getElementById('fPrice').value) || 0;
+  const price = action === 'เธเธฒเธเน€เธเธดเธ' || action === 'เธ–เธญเธเน€เธเธดเธ' ? 1 : parseFloat(document.getElementById('fPrice').value) || 0;
   const fee = parseFloat(document.getElementById('fFee').value) || 0;
   const tax = parseFloat(document.getElementById('fTax').value) || 0;
   const gross = hasFxRate ? (qty * price) / currencyPerUsd : 0;
@@ -245,13 +245,13 @@ function calcTx() {
   document.getElementById('dGross').textContent = hasFxRate ? fmtMoney(gross) : '—';
   document.getElementById('dFee').textContent = hasFxRate ? fmtMoney(feeUsd) : '—';
   document.getElementById('dTax').textContent = hasFxRate ? fmtMoney(taxUsd) : '—';
-  const net = action === 'ซื้อ' || action === 'ถอนเงิน' ? gross + feeUsd + taxUsd : gross - feeUsd - taxUsd;
+  const net = action === 'เธเธทเนเธญ' || action === 'เธ–เธญเธเน€เธเธดเธ' ? gross + feeUsd + taxUsd : gross - feeUsd - taxUsd;
   document.getElementById('dNet').textContent = hasFxRate ? fmtMoney(net) : '—';
-  document.getElementById('dNetLbl').textContent = action === 'ซื้อ' ? 'Amount due' : action === 'ขาย' ? 'Net proceeds' : action === 'ฝากเงิน' ? 'Cash added' : action === 'ถอนเงิน' ? 'Cash removed' : 'Amount received';
-  document.getElementById('lblPrice').innerHTML = action === 'ปันผล' || action === 'ดอกเบี้ย' ? `Amount per unit (${currency}) <span class="req">*</span>` : `Price per unit (${currency}) <span class="req">*</span>`;
+  document.getElementById('dNetLbl').textContent = action === 'เธเธทเนเธญ' ? 'Amount due' : action === 'เธเธฒเธข' ? 'Net proceeds' : action === 'เธเธฒเธเน€เธเธดเธ' ? 'Cash added' : action === 'เธ–เธญเธเน€เธเธดเธ' ? 'Cash removed' : 'Amount received';
+  document.getElementById('lblPrice').innerHTML = action === 'เธเธฑเธเธเธฅ' || action === 'เธ”เธญเธเน€เธเธตเนเธข' ? `Amount per unit (${currency}) <span class="req">*</span>` : `Price per unit (${currency}) <span class="req">*</span>`;
   const rb = document.getElementById('realizedBox');
   const symbol = document.getElementById('fSymbol').value.trim().toUpperCase();
-  if (action === 'ขาย' && symbol && qty > 0) {
+  if (action === 'เธเธฒเธข' && symbol && qty > 0) {
     clearTimeout(calcTxDebounce);
     calcTxDebounce = setTimeout(async () => {
       try {
@@ -267,7 +267,7 @@ function calcTx() {
   }
 }
 document.getElementById('fSymbol')?.addEventListener('input', () => {
-  if (document.getElementById('fAction').value === 'ปันผล') {
+  if (document.getElementById('fAction').value === 'เธเธฑเธเธเธฅ') {
     applyDividendHoldingSelection();
   }
   calcTx();
@@ -276,11 +276,11 @@ document.getElementById('fSymbol')?.addEventListener('input', () => {
 async function saveTx(e) {
   e.preventDefault();
   const action = document.getElementById('fAction').value;
-  const isCashFlow = action === 'ฝากเงิน' || action === 'ถอนเงิน';
+  const isCashFlow = action === 'เธเธฒเธเน€เธเธดเธ' || action === 'เธ–เธญเธเน€เธเธดเธ';
   const currency = document.getElementById('fCurrency').value || 'USD';
   const body = {
     date: document.getElementById('fDate').value,
-    assetType: isCashFlow ? 'เงินสด' : document.getElementById('fAssetType').value,
+    assetType: isCashFlow ? 'เน€เธเธดเธเธชเธ”' : document.getElementById('fAssetType').value,
     action,
     symbol: isCashFlow ? 'CASH' : document.getElementById('fSymbol').value.trim().toUpperCase(),
     ticker: document.getElementById('fTicker').value.trim(),
@@ -296,7 +296,7 @@ async function saveTx(e) {
   if ((!isCashFlow && (!body.assetType || !body.symbol)) || body.qty <= 0) { toast('Please fill in all required fields', 'danger'); return false; }
   try {
     await API.createTx(body);
-    toast('✅ Transaction saved');
+    toast('Transaction saved');
     resetTxForm();
     navigate('transactions');
   } catch (e2) {
@@ -330,7 +330,7 @@ async function filterTx() {
     action: document.getElementById('sAction').value,
     broker: document.getElementById('sBroker').value,
   };
-  document.getElementById('txTbl').innerHTML = '<div class="loading-inline">⏳ Loading...</div>';
+  document.getElementById('txTbl').innerHTML = '<div class="loading-inline">Loading...</div>';
   try {
     const { transactions } = await API.listTx(params);
     curTxFiltered = transactions;
@@ -342,14 +342,14 @@ async function filterTx() {
 }
 function renderTxTbl(list) {
   const wrap = document.getElementById('txTbl');
-  if (!list.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No transactions yet</p></div>'; return; }
+  if (!list.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">•</div><p>No transactions yet</p></div>'; return; }
   wrap.innerHTML = `<table>
   <thead><tr><th>Date</th><th>Asset</th><th>Symbol</th><th>Broker</th><th>Action</th><th class="td-r">Qty / Amount</th><th class="td-r">Price</th><th class="td-r">Fee</th><th class="td-r">Tax</th><th class="td-r">Net</th><th class="td-c">Edit</th></tr></thead>
    <tbody>${list.map((t) => {
     const gross = t.qty * t.price;
     const currency = t.currency || 'USD';
-    const net = t.action === 'ซื้อ' || t.action === 'ถอนเงิน' ? gross + t.fee + (t.tax || 0) : gross - t.fee - (t.tax || 0);
-    const isCashFlow = t.action === 'ฝากเงิน' || t.action === 'ถอนเงิน';
+    const net = t.action === 'เธเธทเนเธญ' || t.action === 'เธ–เธญเธเน€เธเธดเธ' ? gross + t.fee + (t.tax || 0) : gross - t.fee - (t.tax || 0);
+    const isCashFlow = t.action === 'เธเธฒเธเน€เธเธดเธ' || t.action === 'เธ–เธญเธเน€เธเธดเธ';
     return `<tr>
       <td style="font-size:12px">${fmtDS(t.date)}</td>
       <td style="font-size:12px">${isCashFlow ? 'Cash' : assetTypeLabel(t.asset_type)}</td>
@@ -361,7 +361,7 @@ function renderTxTbl(list) {
       <td class="td-r">${fmtCurrency(t.fee, currency)}</td>
       <td class="td-r">${fmtCurrency(t.tax || 0, currency)}</td>
       <td class="td-r fw">${fmtCurrency(net, currency)}</td>
-      <td class="td-c"><button class="btn btn-outline btn-sm" onclick="openEditTx('${t.id}')">✏️</button></td>
+      <td class="td-c"><button class="btn btn-outline btn-sm" onclick="openEditTx('${t.id}')">Edit</button></td>
      </tr>`;
   }).join('')}</tbody></table>`;
 }
@@ -399,24 +399,24 @@ async function saveEditTx() {
   };
   try {
     await API.updateTx(editTxId, body);
-    closeM('mEditTx'); await filterTx(); toast('✅ Changes saved');
+    closeM('mEditTx'); await filterTx(); toast('Changes saved');
   } catch (e) { toast(errMsg(e), 'danger'); }
 }
 async function deleteTxFromModal() {
   if (!confirm('Delete this transaction?')) return;
   try {
     await API.deleteTx(editTxId);
-    closeM('mEditTx'); await filterTx(); toast('✅ Deleted');
+    closeM('mEditTx'); await filterTx(); toast('Deleted');
   } catch (e) { toast(errMsg(e), 'danger'); }
 }
 
 // ====== HOLDINGS ======
 async function loadHoldings() {
   const wrap = document.getElementById('holdTbl');
-  wrap.innerHTML = '<div class="loading-inline">⏳ Loading...</div>';
+  wrap.innerHTML = '<div class="loading-inline">Loading...</div>';
   try {
     const { holdings } = await API.holdings();
-    if (!holdings.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>No open holdings</p></div>'; return; }
+    if (!holdings.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">•</div><p>No open holdings</p></div>'; return; }
     wrap.innerHTML = `<table>
     <thead><tr><th>Symbol</th><th>Type</th><th>Broker</th><th class="td-r">Qty</th><th class="td-r">Avg cost (USD)</th><th class="td-r">Cost basis (USD)</th><th class="td-r">Current price (USD)</th><th class="td-r">Market value (USD)</th><th class="td-r">P/L (USD)</th><th class="td-r">%</th></tr></thead>
      <tbody>${holdings.map((h) => `<tr>
@@ -440,9 +440,9 @@ async function refreshAllLivePrices() {
   const originalLabels = buttons.map((button) => button.textContent);
   buttons.forEach((button) => {
     button.disabled = true;
-    button.textContent = '⏳ Fetching prices & FX...';
+    button.textContent = 'Fetching prices & FX...';
   });
-  toast('📡 Fetching current prices and exchange rates...', 'info');
+  toast('Fetching current prices and exchange rates...', 'info');
   try {
     const fx = await refreshLiveFxRates();
     await API.updateFxRates(fx.rates);
@@ -464,7 +464,7 @@ async function refreshAllLivePrices() {
       try {
         const { data } = await API.marketIndicators(holding.ticker, true);
         let price = Number(data?.price);
-        if (holding.assetType === 'หุ้นไทย') {
+        if (holding.assetType === 'เธซเธธเนเธเนเธ—เธข') {
           if (!Number.isFinite(thbPerUsd) || thbPerUsd <= 0) throw new Error('Exchange-rate quote unavailable');
           price /= thbPerUsd;
         }
@@ -486,7 +486,7 @@ async function refreshAllLivePrices() {
     }
 
     if (updated) {
-      toast(`✅ Updated ${updated} price${updated === 1 ? '' : 's'}; portfolio chart saved. ${fx.updated} FX rates updated${fx.failed ? ` (${fx.failed} unavailable)` : ''}${failed ? `; ${failed} tickers failed` : ''}`);
+      toast(`Updated ${updated} price${updated === 1 ? '' : 's'}; portfolio chart saved. ${fx.updated} FX rates updated${fx.failed ? ` (${fx.failed} unavailable)` : ''}${failed ? `; ${failed} tickers failed` : ''}`);
     } else if (failed) {
       toast(`No prices changed; ${failed} ticker${failed === 1 ? '' : 's'} could not be refreshed. ${fx.updated} FX rates updated${fx.failed ? ` (${fx.failed} unavailable)` : ''}`, 'warning');
     } else {
@@ -518,7 +518,7 @@ async function loadDash() {
         <td class="mono">${t.symbol}</td>
         <td>${actBadge(t.action)}</td>
         <td class="td-r fw">${fmtMoney(t.qty * t.price)}</td>
-      </tr>`).join('')}</tbody></table>` : '<div class="empty-state"><div class="empty-icon">📋</div><p>No transactions yet</p></div>';
+      </tr>`).join('')}</tbody></table>` : '<div class="empty-state"><div class="empty-icon">•</div><p>No transactions yet</p></div>';
     const entries = Object.entries(d.byType);
     document.getElementById('dashByType').innerHTML = entries.length
       ? entries.map(([tp, v]) => `<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--cream-dark);font-size:14px"><span>${assetTypeLabel(tp)}</span><span class="fw">${fmtMoney(v)} <span class="tm">(${d.totalMV > 0 ? (v / d.totalMV * 100).toFixed(1) : 0}%)</span></span></div>`).join('')
@@ -553,7 +553,7 @@ async function renderTargetAllocForm() {
     <span class="tm" style="font-size:12px">%</span>
     <label title="Include in the DCA target mix" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" class="talloc-dca" ${selectedDcaSymbols.has(s) ? 'checked' : ''} onchange="updateTargetSum()" /> DCA</label>
     <span class="mono talloc-effective" title="Normalized DCA weight" style="min-width:48px;text-align:right">0%</span>
-    <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="this.closest('[data-row]').remove();updateTargetSum()">🗑️</button>
+    <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="this.closest('[data-row]').remove();updateTargetSum()">Remove</button>
   </div>`).join('');
   updateTargetSum();
 }
@@ -597,7 +597,7 @@ async function saveDcaSettings() {
   const vol = parseFloat(document.getElementById('dcaVol').value) || 0;
   try {
     await API.saveDcaConfig({ budget, vol });
-    toast('✅ DCA budget saved');
+    toast('DCA budget saved');
     await renderSmartDcaV2(false);
   } catch (e) { toast(errMsg(e), 'danger'); }
 }
@@ -610,13 +610,13 @@ function sigBadgeClass(sig) {
 async function renderSmartDcaV2(fetchLive) {
   const wrap = document.getElementById('rebalTbl');
   const budget = parseFloat(document.getElementById('dcaBudget').value) || 0;
-  wrap.innerHTML = '<div class="loading-inline">⏳ Calculating Smart-DCA v2...</div>';
+  wrap.innerHTML = '<div class="loading-inline">Calculating Smart-DCA v2...</div>';
   try {
     const data = await API.smartDcaV2(budget, fetchLive);
     const risk = data.risk;
     const riskText = `Risk: ${risk.level} | Score: ${risk.score} | Gate: ${risk.gate}`;
     const notInTargetHtml = data.notInTarget?.length
-      ? `<div style="padding:12px 16px;border-top:1px solid var(--cream-dark)"><div class="fw" style="margin-bottom:8px">NOT IN TARGET</div><div class="tm" style="font-size:12px">Holdings without a target get no automatic DCA and are never auto-sold.</div>${data.notInTarget.map((stock) => `<div style="display:flex;justify-content:space-between;padding:7px 0"><span class="mono">${stock.ticker}</span><span>${(stock.currentWeight * 100).toFixed(2)}% · ${stock.action}</span></div>`).join('')}</div>`
+      ? `<div style="padding:12px 16px;border-top:1px solid var(--cream-dark)"><div class="fw" style="margin-bottom:8px">NOT IN TARGET</div><div class="tm" style="font-size:12px">Holdings without a target get no automatic DCA and are never auto-sold.</div>${data.notInTarget.map((stock) => `<div style="display:flex;justify-content:space-between;padding:7px 0"><span class="mono">${stock.ticker}</span><span>${(stock.currentWeight * 100).toFixed(2)}% ยท ${stock.action}</span></div>`).join('')}</div>`
       : '';
     wrap.innerHTML = `<div style="padding:12px 16px;border-bottom:1px solid var(--cream-dark);font-weight:600">${riskText}</div>
       <table><thead><tr><th>Ticker</th><th class="td-r">Current %</th><th class="td-r">Target %</th><th class="td-r">Hard max %</th><th class="td-r">Score</th><th>Action</th><th class="td-r">DCA (USD)</th><th>Reason</th></tr></thead>
@@ -628,7 +628,7 @@ async function renderSmartDcaV2(fetchLive) {
         <td class="td-r fw">${stock.compositeScore.toFixed(1)}</td>
         <td><span class="badge ${sigBadgeClass(stock.action)}">${stock.action}</span></td>
         <td class="td-r fw">${fmtMoney(stock.dcaAmount)}</td>
-        <td style="font-size:12px" title="${stock.reasons.join(' | ')}">${stock.reasons.join(' · ')}</td>
+        <td style="font-size:12px" title="${stock.reasons.join(' | ')}">${stock.reasons.join(' ยท ')}</td>
       </tr>`).join('')}</tbody>
       <tfoot><tr class="rpt-total-row"><td colspan="6" style="text-align:right">Allocated / cash remaining</td><td class="td-r fw">${fmtMoney(data.summary.totalAllocated)}</td><td class="td-r">Left ${fmtMoney(data.summary.cashRemaining)}</td></tr></tfoot></table>${notInTargetHtml}`;
   } catch (e) {
@@ -655,15 +655,15 @@ function isPortfolioHistoryAnchor(date) {
 }
 async function captureSnapshot() {
   const btn = document.getElementById('btnCaptureSnap');
-  btn.disabled = true; btn.textContent = '⏳ Saving...';
+  btn.disabled = true; btn.textContent = 'Saving...';
   try {
     await API.captureSnapshot(new Date().toISOString().slice(0, 10));
-    toast('✅ Saved today\'s portfolio value');
+    toast('Saved today\'s portfolio value');
     await loadDashChart();
   } catch (e) {
     toast(errMsg(e), 'danger');
   } finally {
-    btn.disabled = false; btn.textContent = '📸 Save today\'s portfolio value';
+    btn.disabled = false; btn.textContent = 'Save today\'s portfolio value';
   }
 }
 async function loadDashChart() {
@@ -747,7 +747,7 @@ function renderDashChart(series) {
   });
 }
 function renderDashStatsPanel(d) {
-  const percentage = (value) => Number.isFinite(value) ? `${value.toFixed(2)}%` : 'N/A';
+  const percentage = (value) => Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}%` : null;
   const thbPerUsd = Number(d.thbPerUsd);
   const fmtStatsMoney = (value) => {
     const thbValue = Number(value) * thbPerUsd;
@@ -758,38 +758,36 @@ function renderDashStatsPanel(d) {
   };
   const benchmarkTicker = String(d.benchmarkTicker || '').replace(/[^A-Z0-9.^=_-]/gi, '') || 'Index';
   const metric = (label, value, detail = '') => `<div class="dashboard-stat"><div class="tm dashboard-stat-label">${label}</div><div class="fw dashboard-stat-value">${value}</div>${detail ? `<div class="tm dashboard-stat-detail">${detail}</div>` : ''}</div>`;
+  const realizedAndDividends = (Number(d.realizedThisYear) || 0) + (Number(d.divThisYear) || 0);
+  const advancedMetrics = [];
+  const priceIrr = Number(d.priceIrr);
+  if (Number.isFinite(priceIrr)) {
+    advancedMetrics.push(metric('Price IRR / MWR', percentage(priceIrr), 'Annualized; dividends excluded'));
+  }
+  const benchmarkReturn = Number(d.benchmarkReturn);
+  if (Number.isFinite(benchmarkReturn)) {
+    advancedMetrics.push(metric(`${benchmarkTicker} price return`, percentage(benchmarkReturn), 'Recorded benchmark snapshots'));
+  }
+
+  const primaryMetricCards = [
+    metric('Total Portfolio Value (NAV)', fmtStatsMoney(d.nav), 'Display in USD + THB conversion'),
+    metric('Cash Balance', fmtStatsMoney(d.cashBalance), 'Liquid unallocated capital'),
+    metric('Total Cost Basis', fmtStatsMoney(d.totalCost), 'Capital deployed in active holdings'),
+    metric('Net Total Invested', fmtStatsMoney(d.netTotalInvested), 'True net external capital invested'),
+    metric('Unrealized P/L', `<span class="${d.unrealizedPL >= 0 ? 'pos' : 'neg'}">${fmtMoney(d.unrealizedPL)} (${percentage(d.unrealizedPct) || '0.00%'})</span>`, 'Value + percentage'),
+    metric('Realized P/L & Dividends', `<span class="${realizedAndDividends >= 0 ? 'pos' : 'neg'}">${fmtMoney(realizedAndDividends)}</span>`, 'Cumulative closed gains & income'),
+  ].join('');
+
+  const advancedSection = advancedMetrics.length
+    ? `<div class="dashboard-stat-group"><div class="dashboard-stat-group-title">Analytics &amp; Benchmarks</div><div class="dashboard-stat-grid">${advancedMetrics.join('')}</div></div>`
+    : '';
+
   document.getElementById('dashStatsPanel').innerHTML = `
    <div class="card-hdr"><span class="card-title">Stats Performance</span></div>
    <div class="dashboard-stat-grid">
-    ${metric('Total cost basis', fmtStatsMoney(d.totalCost))}
-    ${metric('Total portfolio value / NAV', fmtStatsMoney(d.nav))}
-    ${metric('Cash balance', fmtStatsMoney(d.cashBalance), 'Record the opening cash balance as a deposit')}
-    ${metric('Net total invested', fmtStatsMoney(d.netTotalInvested))}
-    ${metric('Unrealized P/L', `<span class="${d.unrealizedPL >= 0 ? 'pos' : 'neg'}">${fmtMoney(d.unrealizedPL)} (${percentage(d.unrealizedPct)})</span>`)}
-    ${metric('Realized P/L (YTD)', `<span class="${d.realizedThisYear >= 0 ? 'pos' : 'neg'}">${fmtMoney(d.realizedThisYear)}</span>`)}
+    ${primaryMetricCards}
    </div>
-   <div class="dashboard-stat-group">
-    <div class="dashboard-stat-group-title">Price return</div>
-    <div class="dashboard-stat-grid">
-     ${metric('Time-weighted price return', 'N/A', 'Needs valuations around cash flows')}
-     ${metric('Price IRR / MWR', percentage(d.priceIrr), 'Annualized; dividends excluded')}
-     ${metric('Unrealized capital gain', percentage(d.unrealizedPct))}
-    </div>
-   </div>
-   <div class="dashboard-stat-group">
-    <div class="dashboard-stat-group-title">Benchmark &amp; alpha</div>
-    <div class="dashboard-stat-grid">
-     ${metric(`${benchmarkTicker} price return`, percentage(d.benchmarkReturn), 'Recorded benchmark snapshots')}
-     ${metric('Alpha', 'N/A', 'Needs a flow-adjusted portfolio return')}
-    </div>
-   </div>
-   <div class="dashboard-stat-group">
-    <div class="dashboard-stat-group-title">Price quality</div>
-    <div class="dashboard-stat-grid">
-     ${metric('Cost vs. VWAP', 'N/A', 'Historical market volume unavailable')}
-     ${metric('Stock selection win rate', percentage(d.stockWinRate?.rate), `${d.stockWinRate?.winners || 0} / ${d.stockWinRate?.total || 0} stocks above cost`)}
-    </div>
-   </div>`;
+   ${advancedSection}`;
 }
 
 // ====== SETTINGS ======
@@ -810,7 +808,7 @@ async function saveSettings() {
     });
     const name = document.getElementById('stName').value.trim();
     if (name) document.getElementById('sbCo').textContent = name;
-    toast('✅ Settings saved');
+    toast('Settings saved');
   } catch (e) { toast(errMsg(e), 'danger'); }
 }
 // ====== START ======

@@ -9,29 +9,31 @@
  */
 
 const TARGET_WEIGHTS = {
-  TSM: 0.18,
-  MSFT: 0.17,
-  GOOGL: 0.15,
-  ASML: 0.13,
-  NVDA: 0.11,
-  AVGO: 0.09,
-  AMZN: 0.07,
+  TSM: 0.15,
+  MSFT: 0.16,
+  GOOGL: 0.13,
+  ASML: 0.12,
+  NVDA: 0.10,
+  AVGO: 0.08,
+  AMZN: 0.06,
   LITE: 0.04,
   SPOT: 0.04,
   BE: 0.02,
+  V: 0.10,
 };
 
 const HARD_MAX_WEIGHTS = {
-  TSM: 0.23,
-  MSFT: 0.22,
-  GOOGL: 0.20,
-  ASML: 0.18,
-  NVDA: 0.16,
-  AVGO: 0.14,
-  AMZN: 0.12,
+  TSM: 0.20,
+  MSFT: 0.21,
+  GOOGL: 0.18,
+  ASML: 0.17,
+  NVDA: 0.15,
+  AVGO: 0.13,
+  AMZN: 0.11,
   LITE: 0.07,
   SPOT: 0.07,
   BE: 0.05,
+  V: 0.14,
 };
 
 /**
@@ -137,6 +139,8 @@ const VALUATION_CONFIG = {
   LITE: 25,
   SPOT: 70,
   BE: 35,
+  // V: payments/financials.
+  V: 28,
   },
 };
 

@@ -749,18 +749,22 @@ function renderDashChart(series) {
 function renderDashStatsPanel(d) {
   const percentage = (value) => Number.isFinite(value) ? `${value.toFixed(2)}%` : 'N/A';
   const thbPerUsd = Number(d.thbPerUsd);
-  const navInThb = Number.isFinite(thbPerUsd) && thbPerUsd > 0
-    ? ` <span class="tm">(${fmtCurrency(d.nav * thbPerUsd, 'THB')})</span>`
-    : '';
+  const fmtStatsMoney = (value) => {
+    const thbValue = Number(value) * thbPerUsd;
+    const thbAmount = Number.isFinite(thbValue) && thbPerUsd > 0
+      ? ` <span class="tm">(${fmtCurrency(thbValue, 'THB')})</span>`
+      : '';
+    return `${fmtMoney(value)}${thbAmount}`;
+  };
   const benchmarkTicker = String(d.benchmarkTicker || '').replace(/[^A-Z0-9.^=_-]/gi, '') || 'Index';
   const metric = (label, value, detail = '') => `<div class="dashboard-stat"><div class="tm dashboard-stat-label">${label}</div><div class="fw dashboard-stat-value">${value}</div>${detail ? `<div class="tm dashboard-stat-detail">${detail}</div>` : ''}</div>`;
   document.getElementById('dashStatsPanel').innerHTML = `
    <div class="card-hdr"><span class="card-title">Stats Performance</span></div>
    <div class="dashboard-stat-grid">
-    ${metric('Total cost basis', fmtMoney(d.totalCost))}
-    ${metric('Total portfolio value / NAV', `${fmtMoney(d.nav)}${navInThb}`)}
-    ${metric('Cash balance', fmtMoney(d.cashBalance), 'Record the opening cash balance as a deposit')}
-    ${metric('Net total invested', fmtMoney(d.netTotalInvested))}
+    ${metric('Total cost basis', fmtStatsMoney(d.totalCost))}
+    ${metric('Total portfolio value / NAV', fmtStatsMoney(d.nav))}
+    ${metric('Cash balance', fmtStatsMoney(d.cashBalance), 'Record the opening cash balance as a deposit')}
+    ${metric('Net total invested', fmtStatsMoney(d.netTotalInvested))}
     ${metric('Unrealized P/L', `<span class="${d.unrealizedPL >= 0 ? 'pos' : 'neg'}">${fmtMoney(d.unrealizedPL)} (${percentage(d.unrealizedPct)})</span>`)}
     ${metric('Realized P/L (YTD)', `<span class="${d.realizedThisYear >= 0 ? 'pos' : 'neg'}">${fmtMoney(d.realizedThisYear)}</span>`)}
    </div>

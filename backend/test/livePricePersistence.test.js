@@ -78,6 +78,7 @@ test('DCA uses cached market data when calculating and persists market values', 
   assert.equal(holdings[0].marketValue, 30);
   assert.equal(dashboard.totalCost, 20);
   assert.equal(dashboard.totalMV, 30);
+  assert.equal(dashboard.thbPerUsd, null);
 
   const depositResponse = await fetch(`${baseUrl}/transactions`, {
     method: 'POST',
@@ -122,11 +123,13 @@ test('DCA uses cached market data when calculating and persists market values', 
   const dashboardAtDepositRate = await (await fetch(`${baseUrl}/holdings/dashboard`, { headers })).json();
   assert.equal(dashboardAtDepositRate.cashBalance, 180);
   assert.equal(dashboardAtDepositRate.netTotalInvested, 200);
+  assert.equal(dashboardAtDepositRate.thbPerUsd, 36.5);
 
   assert.equal((await saveFxRate(40)).status, 200);
   const dashboardAtCurrentRate = await (await fetch(`${baseUrl}/holdings/dashboard`, { headers })).json();
   assert.equal(dashboardAtCurrentRate.cashBalance, 171.25);
   assert.equal(dashboardAtCurrentRate.netTotalInvested, 200);
+  assert.equal(dashboardAtCurrentRate.thbPerUsd, 40);
   const storedThbDeposit = db.prepare("SELECT qty, currency, fx_rate FROM transactions WHERE symbol = 'CASH' AND currency = 'THB'").get();
   assert.equal(storedThbDeposit.qty, 3650);
   assert.equal(storedThbDeposit.currency, 'THB');

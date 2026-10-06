@@ -619,6 +619,7 @@ function renderDashChart(series) {
         pointRadius: pointRadii,
         pointHoverRadius: pointHoverRadii,
         pointBackgroundColor: pointBackgroundColors,
+        pointHoverBackgroundColor: 'rgba(122,92,62,0.08)',
         tension: 0.15,
         fill: true,
       }],

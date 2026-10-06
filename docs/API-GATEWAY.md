@@ -266,6 +266,8 @@ Response `201`:
 
 `days` default `365`. คืน `{ "series", "portfolioMetrics", "benchmarkMetrics", "benchmarkTicker" }`. แต่ละ series item มี `date`, `portfolioValue`, `totalCost`, `benchmarkValue`; benchmark ถูก normalize ให้เริ่มจาก portfolio value จุดแรก. Metrics มี `cumReturn`, `vol`, `sharpe`, `maxDrawdown`, `points`; ถ้าข้อมูลไม่พอ metrics คืนค่า 0 ตามจำนวน points
 
+Endpoint นี้ส่ง snapshots ทั้งหมดในช่วงวันที่ที่ร้องขอโดยไม่กรองตามรอบรายเดือน. การเลือกจุดบนกราฟเป็น frontend behavior: snapshots และ marker ก่อนเดือน ต.ค. 2026 แสดงตามเดิม โดย `2026-09-30` ยังคงเป็น marker บนเส้นและเป็นจุดตั้งต้น; รอบ marker รายเดือนใหม่เริ่ม `2026-10-28` แล้วใช้วันที่ 28 ของแต่ละเดือน. Snapshot ล่าสุดที่ไม่ใช่ anchor ใช้ต่อปลายเส้นโดยไม่มี marker
+
 ### `DELETE /api/snapshots/:date`
 
 ลบ snapshot ตามวันที่ `YYYY-MM-DD`. Success `{ "ok": true }`; ไม่พบวันที่คืน `404`.

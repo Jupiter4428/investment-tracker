@@ -1,8 +1,10 @@
-# API Handbook
+# Developer and API Guide
 
-คู่มือ API สำหรับพัฒนาและทดสอบ backend ของ Investment Tracker
+คู่มือสำหรับตั้งค่าและรันระบบในเครื่อง รวมถึง architecture, configuration, API และการทดสอบของ Investment Tracker
 
 ## Local Development
+
+ต้องใช้ Node.js `>=22.5.0` และ npm อินเทอร์เน็ตจำเป็นสำหรับดึงข้อมูล Yahoo Finance และดาวน์โหลด OCR language models ในการใช้งานครั้งแรก
 
 เริ่ม backend จากโฟลเดอร์ `backend`:
 
@@ -35,6 +37,77 @@ $login = Invoke-RestMethod -Method Post -Uri "$base/auth/login" `
 $headers = @{ Authorization = "Bearer $($login.token)" }
 Invoke-RestMethod -Uri "$base/holdings" -Headers $headers
 ```
+
+ก่อนเริ่มครั้งแรก ให้ตั้ง `JWT_SECRET` เป็นค่าสุ่มที่ยาว และกำหนด `SEED_ADMIN_PASSWORD` ใน `.env` ค่า seed เริ่มต้นคือ `admin` / `admin1234` หากไม่ได้กำหนดค่าอื่น; เปลี่ยนรหัสผ่านก่อนใช้งานจริง
+
+### Start the Frontend
+
+เปิด PowerShell อีกหน้าต่างจากโฟลเดอร์โปรเจกต์:
+
+```powershell
+cd frontend
+npx serve .
+```
+
+เปิด URL ที่คำสั่งแสดงแล้วเข้าสู่ระบบ Frontend เป็น static site ไม่มี build step หาก backend ใช้ host หรือ port อื่น ให้ตั้ง `window.API_BASE_URL` ใน `frontend/index.html` และเพิ่ม frontend origin ใน `CORS_ORIGINS` ของ backend
+
+## Architecture
+
+```text
+backend/
+  src/
+    config/smartDcaV2.js
+    data/historicalStatements.js
+    middleware/auth.js
+    routes/                 auth, transactions, holdings, dca,
+                            smartDcaV2, settings, market, snapshots
+    services/                portfolio, market data, indicators, OCR
+      smartDcaV2/            scoring, risk, allocation, projection
+  test/
+frontend/
+  index.html
+  css/style.css
+  js/api.js
+  js/app.js
+```
+
+Frontend เรียก REST API ด้วย JWT authentication; SQLite ใช้ `node:sqlite` ที่มากับ Node.js ไม่ต้องติดตั้ง native database module ฐานข้อมูลเริ่มต้นอยู่ที่ `backend/data/investment.db` และ historical snapshots จะถูก seed แบบ idempotent
+
+## Configuration
+
+ตั้งค่าใน `backend/.env` โดยดูค่าเริ่มต้นจาก [`backend/.env.example`](backend/.env.example)
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | API port; default `4000` |
+| `JWT_SECRET` | Signing key สำหรับ JWT; ต้องเปลี่ยนก่อนใช้งานจริง |
+| `JWT_EXPIRES_IN` | อายุ session; default `12h` |
+| `DB_PATH` | ตำแหน่ง SQLite database |
+| `CORS_ORIGINS` | comma-separated frontend origins |
+| `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | owner account ที่สร้างเมื่อยังไม่มีผู้ใช้ |
+| `RSI_PERIOD`, `MACD_*`, `EMA_PERIOD`, `VOL_WINDOW` | พารามิเตอร์คำนวณ indicators และ volatility |
+| `DATA_PERIOD` | ช่วงข้อมูลย้อนหลังจาก Yahoo Finance (`1mo`, `3mo`, `6mo`, `1y` หรือ `2y`) |
+| `MARKET_CACHE_MINUTES` | อายุ cache ของ market data |
+
+หมายเหตุ: `RSI_OVERSOLD`, `RSI_OVERBOUGHT`, `REBALANCE_TOLERANCE` และ `VOL_DCA_CAP` ยังอยู่ใน `.env.example` แต่ runtime ปัจจุบันไม่ได้อ่านตัวแปรเหล่านี้
+
+## Troubleshooting
+
+**Backend exits with `Missing JWT_SECRET`**
+
+ตรวจว่ามี `backend/.env` และกำหนด `JWT_SECRET` แล้ว
+
+**Frontend ติดต่อ API ไม่ได้**
+
+ตรวจว่า backend ทำงานที่ port ใน `PORT`, ค่า `window.API_BASE_URL` ใน `frontend/index.html` ถูกต้อง และ origin ของหน้าเว็บอยู่ใน `CORS_ORIGINS`
+
+**OCR ใช้เวลานานในการสแกนครั้งแรก**
+
+ต้องเชื่อมต่ออินเทอร์เน็ตเพื่อดาวน์โหลด Thai/English language models; ครั้งถัดไปใช้ไฟล์ที่ cache ไว้
+
+**ข้อมูลตลาดไม่อัปเดต**
+
+Yahoo Finance อาจจำกัดการเรียกหรือไม่มีข้อมูลสำหรับ ticker นั้น ระบบจะ fallback ไปใช้ cache/manual data และ Smart-DCA ใช้ `REVIEW` เมื่อข้อมูลไม่พอ
 
 ## Endpoint Index
 

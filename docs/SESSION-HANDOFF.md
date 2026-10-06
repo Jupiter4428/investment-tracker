@@ -8,8 +8,8 @@ The OCR slip-scanning feature mentioned in this historical handoff was subsequen
 
 ## Git State
 
-- Last checked: branch `main` is at `d939992` (`docs: add session handoff notes`) and matches `origin/main`.
-- Worktree was clean at the last check. The recent feature and documentation changes were committed separately by file and pushed.
+- Before the latest documentation batch, `main` and `origin/main` were at `d939992` (`docs: add session handoff notes`); subsequent documentation commits may leave local `main` ahead of origin until pushed.
+- The documentation changes were committed separately by file. Check `git status -sb` and `git log -5 --oneline` before assuming worktree or push state.
 - Preserve new user changes; inspect `git status` before editing, staging, or committing.
 
 ## Current Behavior and Caveats

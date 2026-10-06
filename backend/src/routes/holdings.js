@@ -136,6 +136,7 @@ router.get('/dashboard', (req, res) => {
     benchmarkReturn,
     stockWinRate,
     assetCount: list.length,
+    thbPerUsd: Number(storedFxRates.THB) > 0 ? Number(storedFxRates.THB) : null,
     recentTransactions: recent,
     byType,
     asOfDate,

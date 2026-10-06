@@ -383,17 +383,20 @@ async function initDcaPlan() {
   await renderSmartDcaV2(false);
 }
 async function renderTargetAllocForm() {
-  let alloc = {}, holdings = [];
+  let alloc = {}, dcaSymbols = [], holdings = [];
   try {
-    [{ targetAlloc: alloc }, { holdings }] = await Promise.all([API.targetAlloc(), API.holdings()]);
+    [{ targetAlloc: alloc, dcaSymbols }, { holdings }] = await Promise.all([API.targetAlloc(), API.holdings()]);
   } catch (e) { toast(errMsg(e), 'danger'); }
   const symbols = Array.from(new Set([...Object.keys(alloc), ...holdings.map((h) => h.symbol)]));
+  const selectedDcaSymbols = new Set(dcaSymbols);
   const el = document.getElementById('targetAllocForm');
   if (!symbols.length) { el.innerHTML = '<p class="tm" style="font-size:13px;padding:8px 0">No assets yet</p>'; updateTargetSum(); return; }
-  el.innerHTML = symbols.map((s) => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--cream-dark)" data-row="${s}">
-    <span class="mono" style="width:90px">${s}</span>
+  el.innerHTML = symbols.map((s) => `<div class="talloc-row" data-row="${s}">
+    <span class="mono" style="width:70px">${s}</span>
     <input type="number" step="any" min="0" max="100" class="form-control talloc-inp" style="max-width:110px" value="${alloc[s] != null ? alloc[s] : 0}" oninput="updateTargetSum()" />
     <span class="tm" style="font-size:12px">%</span>
+    <label title="Include in the DCA target mix" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" class="talloc-dca" ${selectedDcaSymbols.has(s) ? 'checked' : ''} onchange="updateTargetSum()" /> DCA</label>
+    <span class="mono talloc-effective" title="Normalized DCA weight" style="min-width:48px;text-align:right">0%</span>
     <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="this.closest('[data-row]').remove();updateTargetSum()">🗑️</button>
   </div>`).join('');
   updateTargetSum();
@@ -401,20 +404,36 @@ async function renderTargetAllocForm() {
 async function addTargetRow() {
   const input = prompt('Symbol to add to the target allocation');
   if (!input) return;
-  const { targetAlloc } = await API.targetAlloc();
+  const { targetAlloc, dcaSymbols } = await API.targetAlloc();
   targetAlloc[input.trim().toUpperCase()] ??= 0;
-  await API.saveTargetAlloc(targetAlloc);
+  await API.saveTargetAlloc(targetAlloc, dcaSymbols);
   await renderTargetAllocForm();
 }
 function updateTargetSum() {
-  const sum = Array.from(document.querySelectorAll('.talloc-inp')).reduce((total, input) => total + (parseFloat(input.value) || 0), 0);
+  const rows = Array.from(document.querySelectorAll('#targetAllocForm [data-row]'));
+  const selectedRows = rows.filter((row) => row.querySelector('.talloc-dca').checked);
+  const selectedWeight = selectedRows.reduce((total, row) => total + (parseFloat(row.querySelector('.talloc-inp').value) || 0), 0);
+  rows.forEach((row) => {
+    const inputWeight = parseFloat(row.querySelector('.talloc-inp').value) || 0;
+    row.querySelector('.talloc-effective').textContent = row.querySelector('.talloc-dca').checked && selectedWeight > 0
+      ? `${(inputWeight / selectedWeight * 100).toFixed(1)}%`
+      : '—';
+  });
   const label = document.getElementById('targetSumLbl');
-  if (label) { label.textContent = 'Total: ' + sum.toFixed(1) + '%'; label.className = Math.abs(sum - 100) < 0.05 ? 'pos fw' : sum > 100 ? 'neg fw' : 'tm'; }
+  if (label) {
+    label.textContent = selectedWeight > 0 ? `DCA target: 100% across ${selectedRows.length} selected` : 'No DCA target selected';
+    label.className = selectedWeight > 0 ? 'pos fw' : 'tm';
+  }
 }
 async function saveTargetAlloc() {
   const alloc = {};
-  document.querySelectorAll('[data-row]').forEach((row) => { alloc[row.getAttribute('data-row')] = parseFloat(row.querySelector('.talloc-inp').value) || 0; });
-  try { await API.saveTargetAlloc(alloc); toast('Target allocation saved'); await renderSmartDcaV2(false); }
+  const dcaSymbols = [];
+  document.querySelectorAll('#targetAllocForm [data-row]').forEach((row) => {
+    const symbol = row.getAttribute('data-row');
+    alloc[symbol] = parseFloat(row.querySelector('.talloc-inp').value) || 0;
+    if (row.querySelector('.talloc-dca').checked) dcaSymbols.push(symbol);
+  });
+  try { await API.saveTargetAlloc(alloc, dcaSymbols); toast('Target allocation saved'); await renderSmartDcaV2(false); }
   catch (e) { toast(errMsg(e), 'danger'); }
 }
 async function saveDcaSettings() {

@@ -2,6 +2,16 @@ const { ACTIONS, DCA_CONFIG } = require('../../config/smartDcaV2');
 
 const safe = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
+function normalizeDcaTargetWeights(targetWeights, includedSymbols) {
+  const included = new Set(includedSymbols.map((symbol) => String(symbol).trim().toUpperCase()));
+  const entries = Object.entries(targetWeights).map(([symbol, weight]) => [symbol.toUpperCase(), Math.max(0, safe(weight))]);
+  const total = entries.reduce((sum, [symbol, weight]) => sum + (included.has(symbol) ? weight : 0), 0);
+  return Object.fromEntries(entries.map(([symbol, weight]) => [
+    symbol,
+    included.has(symbol) && total > 0 ? weight / total : 0,
+  ]));
+}
+
 function calculateBuyCapacity(currentWeight, hardMaxWeight) {
   return Math.max(0, safe(hardMaxWeight) - safe(currentWeight));
 }
@@ -105,4 +115,4 @@ function buildDcaPlan(portfolio, stocks, budget) {
   return allocateDcaBudget(stocks, budget, { volatility: portfolio.volatility, riskScore: portfolio.riskScore, portfolioValue: portfolio.value });
 }
 
-module.exports = { calculateBuyCapacity, calculateUnderweight, calculatePriority, applyHardMax, applyNotInTarget, applySingleStockLimit, allocateInitialBudget, normalizeAllocations, redistributeRemainingBudget, allocateDcaBudget, buildDcaPlan, volatilityMultiplier };
+module.exports = { calculateBuyCapacity, calculateUnderweight, calculatePriority, applyHardMax, applyNotInTarget, applySingleStockLimit, allocateInitialBudget, normalizeAllocations, normalizeDcaTargetWeights, redistributeRemainingBudget, allocateDcaBudget, buildDcaPlan, volatilityMultiplier };

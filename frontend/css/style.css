@@ -145,3 +145,5 @@ tbody td{padding:10px 12px;color:var(--text-dark);vertical-align:middle;}
 @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 .api-error-banner{background:#FDECEA;border:1px solid #F5B7B1;color:var(--danger);padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:14px;font-size:13px;}
 .loading-inline{display:flex;align-items:center;gap:8px;padding:20px;color:var(--text-light);font-size:13px;}
+.talloc-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--cream-dark);}
+.talloc-row .talloc-inp{width:96px;}

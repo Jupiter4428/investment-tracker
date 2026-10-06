@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS target_alloc (
   symbol TEXT PRIMARY KEY,
-  target_pct REAL NOT NULL DEFAULT 0
+  target_pct REAL NOT NULL DEFAULT 0,
+  dca_enabled INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS dca_config (
@@ -98,6 +99,17 @@ const txColumns = db.prepare("PRAGMA table_info(transactions)").all();
 if (!txColumns.some((c) => c.name === 'broker')) {
   db.exec('ALTER TABLE transactions ADD COLUMN broker TEXT;');
   db.exec('CREATE INDEX IF NOT EXISTS idx_tx_broker ON transactions(broker);');
+}
+
+const targetAllocColumns = db.prepare('PRAGMA table_info(target_alloc)').all();
+if (!targetAllocColumns.some((column) => column.name === 'dca_enabled')) {
+  db.exec('ALTER TABLE target_alloc ADD COLUMN dca_enabled INTEGER NOT NULL DEFAULT 1;');
+}
+
+const dcaMembershipMigration = db.prepare("SELECT v FROM settings WHERE k = 'dca_target_membership_migrated'").get();
+if (!dcaMembershipMigration) {
+  db.exec('UPDATE target_alloc SET dca_enabled = CASE WHEN target_pct > 0 THEN 1 ELSE 0 END;');
+  db.prepare("INSERT INTO settings (k, v) VALUES ('dca_target_membership_migrated', '1')").run();
 }
 
 module.exports = db;

@@ -2,10 +2,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { scoreStock } = require('../src/services/smartDcaV2/scoring');
 const { buildSmartDcaV2 } = require('../src/services/smartDcaV2');
-const { allocateDcaBudget } = require('../src/services/smartDcaV2/allocation');
+const { allocateDcaBudget, normalizeDcaTargetWeights } = require('../src/services/smartDcaV2/allocation');
 const { historicalSnapshots } = require('../src/data/historicalStatements');
 
 const validMarket = { price: 100, ema26: 110, rsi: 35, macd: -1, signal: 0, pe: 20, volatility: 0.3 };
+
+test('DCA target weights normalize selected assets to 100 percent and exclude others', () => {
+  assert.deepEqual(
+    normalizeDcaTargetWeights({ TSM: 0.18, MSFT: 0.12, IONQ: 0.7 }, ['TSM', 'MSFT']),
+    { TSM: 0.6, MSFT: 0.4, IONQ: 0 },
+  );
+});
+
+test('DCA target weights stay empty when no assets are selected', () => {
+  assert.deepEqual(normalizeDcaTargetWeights({ TSM: 0.6, MSFT: 0.4 }, []), { TSM: 0, MSFT: 0 });
+});
 
  test('scoreStock reports overweight and hard-max state', () => {
   const result = scoreStock({ ticker: 'TSM', currentWeight: 0.24, targetWeight: 0.18, hardMaxWeight: 0.23, ...validMarket });

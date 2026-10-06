@@ -60,7 +60,7 @@ const API = {
   dcaConfig: () => api('/dca/config'),
   saveDcaConfig: (body) => api('/dca/config', { method: 'PUT', body }),
   targetAlloc: () => api('/dca/target-alloc'),
-  saveTargetAlloc: (targetAlloc) => api('/dca/target-alloc', { method: 'PUT', body: { targetAlloc } }),
+  saveTargetAlloc: (targetAlloc, dcaSymbols) => api('/dca/target-alloc', { method: 'PUT', body: { targetAlloc, dcaSymbols } }),
   smartDcaV2: (monthlyBudget, fetchLive = false) => api('/dca/v2?monthlyBudget=' + encodeURIComponent(monthlyBudget || 0) + (fetchLive ? '&fetchLive=true' : '')),
 
   settings: () => api('/settings'),

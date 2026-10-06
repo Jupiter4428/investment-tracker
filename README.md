@@ -8,7 +8,7 @@
 
 - Smart-DCA v2 พร้อมคะแนน 6 ปัจจัย: underweight, valuation, RSI, trend, MACD และ volatility
 - Risk gate `PASS`, `CAUTION`, `REVIEW` และ `BLOCK`; ข้อมูลไม่ครบจะไม่จัดสรรเงิน
-- `STOP_BUY` เมื่อถึง hard max และ `NOT_IN_TARGET` สำหรับสินทรัพย์ที่ไม่มี target โดยไม่มี auto-sell
+- `STOP_BUY` เมื่อถึง hard max และ `NOT_IN_TARGET` สำหรับสินทรัพย์ที่ไม่มี target หรือไม่ได้เลือกเข้าแผน DCA โดยไม่มี auto-sell
 - Constrained allocation เคารพงบ, hard max และ single-stock cap
 - บันทึก transaction, holdings, prices, settings และ portfolio snapshots ใน SQLite
 - ดึงราคาและ indicators จาก Yahoo Finance พร้อม cache และ manual fallback
@@ -57,7 +57,9 @@ Frontend เป็น static site ไม่มี build step หาก backend �
 
 ### Smart-DCA v2
 
-กำหนด monthly budget และ target allocation ในหน้า DCA ระบบคำนวณ action, score, risk, allocation และเงินคงเหลือ โดยงบที่จัดสรรรวมจะไม่เกิน available budget แม้ volatility multiplier สูงสุด 1.5x
+กำหนด monthly budget และ target allocation ในหน้า DCA แล้วเลือก checkbox **DCA** เฉพาะสินทรัพย์ที่จะรวมในแผน ระบบ normalize target percentages ที่เป็นบวกของสินทรัพย์ที่เลือกให้รวมเป็น 100%; สินทรัพย์ที่เลือกแต่มี target เป็น 0 จะไม่มีน้ำหนักสำหรับ DCA ส่วนสินทรัพย์ที่ไม่เลือกจะไม่ถูกลบจากพอร์ตหรือ transactions แต่ได้สถานะ `NOT_IN_TARGET` และไม่รับ allocation กด **Save targets** ทุกครั้งที่เปลี่ยนการเลือกหรือน้ำหนักเพื่อบันทึกและคำนวณใหม่
+
+ระบบคำนวณ action, score, risk, allocation และเงินคงเหลือ โดยยอดจัดสรรจริงยังขึ้นกับคะแนน, risk gate, hard max และ single-stock cap; ยอดรวมไม่เกิน available budget แม้ volatility multiplier สูงสุด 1.5x
 
 ### Transaction Slip OCR
 
@@ -111,7 +113,7 @@ Frontend เรียก REST API ด้วย JWT authentication; SQLite ใช
 | `GET` | `/api/holdings/dashboard` | Dashboard และยอดพอร์ต |
 | `GET` | `/api/dca/v2?monthlyBudget=200` | คำนวณ Smart-DCA v2 |
 | `GET` / `PUT` | `/api/dca/config` | อ่านหรือบันทึก DCA config |
-| `GET` / `PUT` | `/api/dca/target-alloc` | อ่านหรือบันทึก target allocation |
+| `GET` / `PUT` | `/api/dca/target-alloc` | อ่านหรือบันทึก target percentages และรายชื่อสินทรัพย์ที่เลือก DCA |
 | `GET` | `/api/snapshots?days=365` | อ่าน historical snapshots |
 | `POST` | `/api/snapshots/capture` | บันทึก portfolio snapshot |
 
@@ -127,10 +129,12 @@ Endpoints สำหรับข้อมูลพอร์ตต้องแน�
 | `DB_PATH` | ตำแหน่ง SQLite database |
 | `CORS_ORIGINS` | comma-separated frontend origins |
 | `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` | owner account ที่สร้างเมื่อยังไม่มีผู้ใช้ |
-| `RSI_PERIOD`, `MACD_*`, `EMA_PERIOD`, `VOL_WINDOW`, `VOL_DCA_CAP` | พารามิเตอร์ indicators และ volatility |
+| `RSI_PERIOD`, `MACD_*`, `EMA_PERIOD`, `VOL_WINDOW` | พารามิเตอร์คำนวณ indicators และ volatility |
+| `DATA_PERIOD` | ช่วงข้อมูลย้อนหลังจาก Yahoo Finance (`1mo`, `3mo`, `6mo`, `1y` หรือ `2y`) |
 | `MARKET_CACHE_MINUTES` | อายุ cache ของ market data |
 
 ดูค่าเริ่มต้นทั้งหมดใน [`backend/.env.example`](backend/.env.example)
+หมายเหตุ: `RSI_OVERSOLD`, `RSI_OVERBOUGHT`, `REBALANCE_TOLERANCE` และ `VOL_DCA_CAP` ยังอยู่ใน `.env.example` แต่ runtime ปัจจุบันไม่ได้อ่านตัวแปรเหล่านี้
 
 ## Tests
 
@@ -140,7 +144,7 @@ Endpoints สำหรับข้อมูลพอร์ตต้องแน�
 node --test test/*.test.js
 ```
 
-ครอบคลุม Smart-DCA scoring/allocation, risk gates, dashboard totals และการอ่านสลิปหุ้น, pending state และข้อมูลที่ไม่รองรับ
+ครอบคลุม Smart-DCA scoring/allocation, การ normalize น้ำหนัก DCA และ migration ของรายการ target เดิม, risk gates, dashboard totals และการอ่านสลิปหุ้น, pending state และข้อมูลที่ไม่รองรับ
 
 ## Troubleshooting
 

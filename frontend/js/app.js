@@ -539,6 +539,10 @@ async function exportSmartDcaTrainingData() {
 }
 // ====== DASHBOARD CHART ======
 let dashChartInstance = null;
+const PORTFOLIO_HISTORY_START_DATE = '2026-09-30';
+function isPortfolioHistoryAnchor(date) {
+  return date === PORTFOLIO_HISTORY_START_DATE || date.slice(8, 10) === '28';
+}
 async function captureSnapshot() {
   const btn = document.getElementById('btnCaptureSnap');
   btn.disabled = true; btn.textContent = '⏳ Saving...';
@@ -556,8 +560,20 @@ async function loadDashChart() {
   const wrap = document.getElementById('dashChartWrap');
   const empty = document.getElementById('dashChartEmpty');
   try {
-    const data = await API.listSnapshots(365);
-    const historicalSeries = data.series.filter((point) => Number(point.portfolioValue) > 0);
+    const data = await API.listSnapshots(36500);
+    const validSnapshots = data.series.filter((point) => Number(point.portfolioValue) > 0);
+    const earlierSnapshots = validSnapshots.filter((point) => point.date < PORTFOLIO_HISTORY_START_DATE);
+    const availableSnapshots = validSnapshots.filter((point) => (
+      point.date >= PORTFOLIO_HISTORY_START_DATE && Number(point.portfolioValue) > 0
+    ));
+    const historicalSeries = [
+      ...earlierSnapshots,
+      ...availableSnapshots.filter((point) => isPortfolioHistoryAnchor(point.date)),
+    ];
+    const latestSnapshot = availableSnapshots.at(-1);
+    if (latestSnapshot && latestSnapshot.date > (historicalSeries.at(-1)?.date || '')) {
+      historicalSeries.push(latestSnapshot);
+    }
     if (historicalSeries.length < 2) {
       wrap.style.display = 'none'; empty.style.display = 'block';
       if (dashChartInstance) { dashChartInstance.destroy(); dashChartInstance = null; }
@@ -575,6 +591,12 @@ function renderDashChart(series) {
   const ctx = document.getElementById('dashChart').getContext('2d');
   const labels = series.map((s) => fmtDS(s.date));
   const values = series.map((s) => s.portfolioValue);
+  const pointRadii = series.map((point) => (
+    point.date < PORTFOLIO_HISTORY_START_DATE ? 2 : isPortfolioHistoryAnchor(point.date) ? 3 : 0
+  ));
+  const pointHoverRadii = series.map((point) => (
+    point.date < PORTFOLIO_HISTORY_START_DATE ? 4 : isPortfolioHistoryAnchor(point.date) ? 5 : 0
+  ));
   if (dashChartInstance) dashChartInstance.destroy();
   dashChartInstance = new Chart(ctx, {
     type: 'line',
@@ -586,7 +608,8 @@ function renderDashChart(series) {
         borderColor: '#7A5C3E',
         backgroundColor: 'rgba(122,92,62,0.08)',
         borderWidth: 2.5,
-        pointRadius: 2,
+        pointRadius: pointRadii,
+        pointHoverRadius: pointHoverRadii,
         tension: 0.15,
         fill: true,
       }],

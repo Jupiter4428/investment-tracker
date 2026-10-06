@@ -238,7 +238,7 @@ Response `{ "data": { "ticker", "price", "rsi", "macd", "signal", "ema26", "vola
 
 ดึง quote ล่าสุดโดยตรง ไม่ใช้ indicator cache และไม่แปลงสกุลเงิน. Response `{ "quote": { "ticker": "THB=X", "price": 33.5 } }`; `price` อยู่ในสกุลเงินที่ Yahoo Finance ใช้กับ ticker นั้น หาก quote ใช้ไม่ได้คืน `502`.
 
-หน้า Holdings มี flow แยกที่ดึงอัตรา `THB=X`, แปลงราคา ticker หุ้นไทยเป็น USD แล้วบันทึกผ่าน `PUT /api/holdings/:symbol/price`; เมื่อมีราคาเปลี่ยน UI จะเรียก `POST /api/snapshots/capture`. ในทางกลับกัน `GET /api/dca/v2?fetchLive=true` บันทึกราคา indicator ที่ดึงมาโดยตรงโดยไม่แปลง FX จึงไม่ควรใช้ flow นี้ refresh ราคาหุ้นไทยในฐานข้อมูลที่แอปตีความเป็น USD.
+ปุ่ม refresh prices บน Dashboard และ Holdings ใช้ frontend flow เดียวกัน: ดึงอัตรา `THB=X`, แปลงราคา ticker หุ้นไทยเป็น USD, บันทึกผ่าน `PUT /api/holdings/:symbol/price` และเมื่อมีราคาเปลี่ยนจะเรียก `POST /api/snapshots/capture`. ในทางกลับกัน `GET /api/dca/v2?fetchLive=true` บันทึกราคา indicator ที่ดึงมาโดยตรงโดยไม่แปลง FX จึงไม่ควรใช้ flow นี้ refresh ราคาหุ้นไทยในฐานข้อมูลที่แอปตีความเป็น USD.
 
 ## Portfolio Snapshots
 

@@ -1,6 +1,7 @@
 const express = require('express');
+const crypto = require('node:crypto');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireOwner } = require('../middleware/auth');
 const { computeHoldings } = require('../services/portfolioEngine');
 const { getIndicatorsForTicker } = require('../services/marketData');
 const { buildSmartDcaV2 } = require('../services/smartDcaV2');
@@ -10,6 +11,24 @@ const { normalizeDcaTargetWeights } = require('../services/smartDcaV2/allocation
 const router = express.Router();
 router.use(requireAuth);
 const TARGET_ALLOC_CONFIGURED_KEY = 'dca_target_alloc_configured';
+
+function readCachedMarketData(ticker) {
+  const row = db.prepare('SELECT payload FROM market_cache WHERE symbol = ?').get(ticker);
+  if (!row) return null;
+  try {
+    return JSON.parse(row.payload);
+  } catch {
+    return null;
+  }
+}
+
+router.get('/training-data', requireOwner, (req, res) => {
+  const rows = db.prepare('SELECT sample_json FROM smart_dca_training_samples ORDER BY id').all();
+  const jsonl = rows.map((row) => row.sample_json).join('\n');
+  res.type('application/x-ndjson');
+  res.set('Content-Disposition', 'attachment; filename="smart-dca-training.jsonl"');
+  res.send(jsonl ? `${jsonl}\n` : '');
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -30,8 +49,22 @@ router.get('/', async (req, res, next) => {
     const fetchLive = req.query.fetchLive === 'true';
     for (const symbol of symbols) {
       const holding = holdingsMap[symbol];
-      if (fetchLive && holding?.ticker) marketData[symbol] = await getIndicatorsForTicker(holding.ticker);
+      const ticker = holding?.ticker || symbol;
+      let liveData = null;
+      if (fetchLive && holding?.ticker) {
+        liveData = await getIndicatorsForTicker(ticker);
+      }
+      const cachedData = readCachedMarketData(ticker);
+      if (liveData || cachedData) marketData[symbol] = { ...(cachedData || {}), ...(liveData || {}) };
       if (!marketData[symbol] && prices[symbol] != null) marketData[symbol] = { price: prices[symbol] };
+      const currentPrice = Number(marketData[symbol]?.price);
+      if (Number.isFinite(currentPrice) && currentPrice > 0) {
+        db.prepare(
+          `INSERT INTO prices (symbol, price, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT(symbol) DO UPDATE SET price = excluded.price, updated_at = excluded.updated_at`
+        ).run(symbol, currentPrice, Date.now());
+        prices[symbol] = currentPrice;
+      }
     }
 
     const holdings = symbols.map((symbol) => {
@@ -56,6 +89,51 @@ router.get('/', async (req, res, next) => {
     const config = db.prepare('SELECT budget FROM dca_config WHERE id = 1').get() || {};
     const monthlyBudget = req.query.monthlyBudget != null ? Number(req.query.monthlyBudget) : Number(config.budget || DCA_CONFIG.DEFAULT_MONTHLY_BUDGET);
     const result = buildSmartDcaV2({ portfolio: { value, monthlyBudget, volatility: portfolioVolatility, holdings: weightedHoldings }, stocks: stockInputs, marketData, monthlyBudget });
+    const capturedAt = Date.now();
+    const runId = crypto.randomUUID();
+    const calculationMode = fetchLive ? 'fetch_requested' : 'stored_calculation';
+    const insertSample = db.prepare(
+      'INSERT INTO smart_dca_training_samples (run_id, captured_at, calculation_mode, ticker, sample_json) VALUES (?, ?, ?, ?, ?)'
+    );
+    db.transaction(() => {
+      for (const stock of result.stocks) {
+        const sample = {
+          schemaVersion: 1,
+          runId,
+          capturedAt: new Date(capturedAt).toISOString(),
+          calculationMode,
+          features: {
+            ticker: stock.ticker,
+            price: stock.price,
+            currentWeight: stock.currentWeight,
+            targetWeight: stock.targetWeight,
+            hardMaxWeight: stock.hardMaxWeight,
+            underweight: stock.underweight,
+            rsi: stock.rsi ?? null,
+            macd: stock.macd ?? null,
+            signal: stock.signal ?? null,
+            ema26: stock.ema26 ?? null,
+            volatility: stock.volatility ?? null,
+            pe: stock.pe ?? null,
+            historicalGrowth: stock.historicalGrowth ?? null,
+            marketDataFetchedAt: stock.fetchedAt ?? null,
+            portfolioValue: result.portfolio.value,
+            monthlyBudget: result.portfolio.monthlyBudget,
+            portfolioRisk: result.risk,
+          },
+          recommendation: {
+            status: stock.status,
+            action: stock.action,
+            dataValid: stock.dataValid,
+            compositeScore: stock.compositeScore,
+            dcaAmount: stock.dcaAmount,
+            reasons: stock.reasons,
+          },
+          outcome: null,
+        };
+        insertSample.run(runId, capturedAt, calculationMode, stock.ticker, JSON.stringify(sample));
+      }
+    })();
     res.json(result);
   } catch (error) {
     next(error);

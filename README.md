@@ -14,7 +14,7 @@
 - Constrained allocation เคารพงบ, hard max และ single-stock cap
 - บันทึก transactions, holdings, prices, settings และ portfolio snapshots
 - ดึงราคาและ indicators จาก Yahoo Finance พร้อม cache และ manual fallback
-- รีเฟรชราคาตลาดของ holdings ที่มี ticker ทั้งหมดจากหน้า Holdings และบันทึก snapshot เมื่อมีราคาเปลี่ยน
+- รีเฟรชราคาตลาดของ holdings ที่มี ticker ทั้งหมดจาก Dashboard หรือ Holdings และบันทึก snapshot เมื่อมีราคาเปลี่ยน
 - Export Smart-DCA training samples เป็น JSONL ได้โดย owner; outcome ยังเป็น `null` ไม่ใช่ผลตอบแทนที่สังเกตจริง
 - Dashboard แสดงมูลค่าพอร์ตและ historical snapshots จาก statement
 
@@ -64,7 +64,7 @@ Composite score คือผลรวมคะแนนถ่วงน้ำห�
 
 ### Portfolio History
 
-Historical statements จาก KKP Dime จำนวน 11 จุดถูกเก็บเป็น month-end snapshots ในหน่วย USD โดยแปลงจาก THB ด้วยอัตรา USD/THB ใกล้วันรายงาน ข้อมูลไม่ได้ถูกแปลงเป็น transactions เพราะเอกสารไม่ได้ระบุรายการซื้อขายครบถ้วน Dashboard และกราฟแสดงมูลค่าเป็น USD เมื่อกด refresh prices ในหน้า Holdings ระบบจะแปลง quote ของหุ้นไทยด้วย `THB=X` ก่อนบันทึกราคา และสร้าง snapshot ของวันเมื่อมีราคาเปลี่ยน อย่างไรก็ตาม `GET /market/quote/:ticker` คืนราคาตามสกุลของ ticker และ Smart-DCA ที่เรียกด้วย `fetchLive=true` ยังบันทึกราคา indicator โดยไม่แปลง FX; อย่าใช้เส้นทาง Smart-DCA นี้รีเฟรชราคาหุ้นไทยในฐานข้อมูล USD จนกว่าจะเพิ่มการแปลงสกุลเงิน
+Historical statements จาก KKP Dime จำนวน 11 จุดถูกเก็บเป็น month-end snapshots ในหน่วย USD โดยแปลงจาก THB ด้วยอัตรา USD/THB ใกล้วันรายงาน ข้อมูลไม่ได้ถูกแปลงเป็น transactions เพราะเอกสารไม่ได้ระบุรายการซื้อขายครบถ้วน Dashboard และกราฟแสดงมูลค่าเป็น USD เมื่อกด refresh prices จาก Dashboard หรือ Holdings ระบบจะแปลง quote ของหุ้นไทยด้วย `THB=X` ก่อนบันทึกราคา และสร้าง snapshot ของวันเมื่อมีราคาเปลี่ยน อย่างไรก็ตาม `GET /market/quote/:ticker` คืนราคาตามสกุลของ ticker และ Smart-DCA ที่เรียกด้วย `fetchLive=true` ยังบันทึกราคา indicator โดยไม่แปลง FX; อย่าใช้เส้นทาง Smart-DCA นี้รีเฟรชราคาหุ้นไทยในฐานข้อมูล USD จนกว่าจะเพิ่มการแปลงสกุลเงิน
 
 กราฟ Portfolio value history คง snapshots และ marker ก่อนเดือน ต.ค. 2026 ตามเดิม โดยปักวันที่ 30 ก.ย. ไว้บนเส้นเป็นจุดตั้งต้นของรอบใหม่ จากนั้นเริ่มปัก marker รายเดือนในวันที่ 28 ต.ค. และทุกวันที่ 28 ของเดือนถัดไป เมื่อ refresh ราคาในวันอื่น กราฟจะต่อเส้นถึง snapshot ล่าสุดและแสดง marker ทึบแบบเดียวกับจุด 30 ก.ย. ที่ปลายขวาสุด
 

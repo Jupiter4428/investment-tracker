@@ -8,25 +8,25 @@ The OCR slip-scanning feature mentioned in this historical handoff was subsequen
 
 ## Git State
 
-- Last checked: `HEAD` and `origin/main` were both `ec85699` (`docs : update docs`). The DCA opt-in feature is in commit `ee24d85` (`feat(dca): add opt-in DCA asset selection`) and has been pushed.
-- Remaining modified/untracked work at last check:
-  - Live-price persistence: an additional change in `backend/src/routes/smartDcaV2.js` and new `backend/test/livePricePersistence.test.js`.
-  - The research note `docs/getquin-exporter-comparison.md` is untracked; it was created after inspecting Getquin Portfolio Exporter and comparing it to this project.
-- README DCA behavior and configuration accuracy were updated and are included in the latest pushed docs commit; do not duplicate those edits without checking current Git state.
+- Last checked: branch `main` is at `d939992` (`docs: add session handoff notes`) and matches `origin/main`.
+- Worktree was clean at the last check. The recent feature and documentation changes were committed separately by file and pushed.
+- Preserve new user changes; inspect `git status` before editing, staging, or committing.
 
-## Work To Resume
+## Current Behavior and Caveats
 
-1. Review the live-price persistence change. When Smart-DCA fetches a valid live price, it updates the `prices` table; `livePricePersistence.test.js` checks the holdings/dashboard effect. Confirm the test still passes with the current code and decide whether this is ready for its own commit.
-2. Decide whether to add `docs/getquin-exporter-comparison.md` to version control. Do not commit it automatically with unrelated feature work.
-3. Configuration follow-up: `backend/.env.example` still lists `RSI_OVERSOLD`, `RSI_OVERBOUGHT`, `REBALANCE_TOLERANCE`, and `VOL_DCA_CAP`, but current runtime code does not read them. Decide whether to wire these options into the implementation or remove/document them as inactive.
-4. The last terminal context reports `npm start` exited with code 1. Check whether port 4000 is listening and inspect the startup error before relying on the local backend.
+- Transactions and stored portfolio prices are interpreted as USD; the database has no per-transaction or per-price currency field.
+- The Holdings page refresh flow converts Thai stock prices using a live `THB=X` quote before saving and captures a same-day snapshot when prices change.
+- The `/market/quote/:ticker` endpoint returns the market quote in the ticker's native currency. Smart-DCA `fetchLive=true` currently persists indicator prices directly without FX conversion; avoid using this flow to refresh Thai stock prices in the USD-based portfolio until the conversion is fixed.
+- Smart-DCA training samples can be downloaded by an owner as JSONL. Their `outcome` is `null`; they are not observed investment results. Transaction import/export is not implemented.
+- `backend/.env.example` includes `RSI_OVERSOLD`, `RSI_OVERBOUGHT`, `REBALANCE_TOLERANCE`, and `VOL_DCA_CAP`; runtime currently does not read these variables.
+- The OCR slip-scanning feature was removed. Do not restore it unless requested.
 
 ## Verification
 
-From `backend/`, run:
+Run backend tests from `backend/` after code changes:
 
 ```powershell
 node --test test/*.test.js
 ```
 
-At the last historical feature-validation pass, all 18 backend tests passed, including DCA migration, the subsequently removed OCR parser, live-price persistence, and Smart-DCA allocation. Re-run after any changes; the current uncommitted work may have changed since that pass.
+Documentation edits do not replace this check when backend behavior changes. Verify API and currency statements against the relevant routes and frontend flow.

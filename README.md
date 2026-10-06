@@ -4,6 +4,8 @@
 
 วิธีติดตั้งและเปิดใช้งานในเครื่องอยู่ใน [คู่มือพัฒนา](CONTRIBUTING.md#local-development)
 
+ดู endpoint, authentication และ request/response contracts ได้ที่ [เอกสาร API Gateway](docs/API-GATEWAY.md)
+
 ## Features
 
 - Smart-DCA v2 ใช้คะแนน 6 ปัจจัย: สัดส่วนที่ต่ำกว่าเป้าหมาย, valuation, RSI, trend, MACD และ volatility
@@ -12,7 +14,6 @@
 - Constrained allocation เคารพงบ, hard max และ single-stock cap
 - บันทึก transactions, holdings, prices, settings และ portfolio snapshots
 - ดึงราคาและ indicators จาก Yahoo Finance พร้อม cache และ manual fallback
-- อ่านสลิปซื้อขายหุ้น Dime ด้วย OCR ไทย/อังกฤษ และให้ตรวจทานก่อนบันทึก
 - Dashboard แสดงมูลค่าพอร์ตและ historical snapshots จาก statement
 
 ## Using the App
@@ -59,21 +60,13 @@ Composite score คือผลรวมคะแนนถ่วงน้ำห�
 
 คำแนะนำและคะแนนเป็นเครื่องมือช่วยวางแผน ไม่ใช่การคาดการณ์ผลตอบแทนหรือคำแนะนำการลงทุน
 
-### Transaction Slip OCR
-
-ในหน้า **New transaction** เลือกรูป PNG, JPEG หรือ WebP ขนาดไม่เกิน 8 MB ระบบจะอ่านข้อมูลลงในฟอร์ม ให้ตรวจทานและกด Save เพื่อบันทึก
-
-- รองรับสลิปซื้อขายหุ้น Dime; สลิปทอง, FX, โอนเงิน และรูปแบบอื่นยังไม่รองรับ
-- สลิป pending หรืออ่านข้อมูลสำคัญไม่ครบจะไม่ถูกบันทึกอัตโนมัติ
-- ภาพประมวลผลในหน่วยความจำและไม่เก็บเป็นไฟล์; OCR models ถูก cache ไว้ใน home directory
-
 ### Portfolio History
 
-Historical statements จาก KKP Dime จำนวน 10 จุดถูกเก็บเป็น month-end snapshots ในหน่วย THB และยังไม่ได้แปลงเป็น USD หรือ transactions เพราะเอกสารไม่ได้ระบุรายการซื้อขายครบถ้วน Dashboard จะแสดง snapshot fallback พร้อมสัญลักษณ์ THB; เมื่อมี holdings จะแสดงมูลค่าปัจจุบันเป็น USD กดบันทึก snapshot จาก Dashboard เพื่อเพิ่มจุดข้อมูลปัจจุบัน
+Historical statements จาก KKP Dime จำนวน 11 จุดถูกเก็บเป็น month-end snapshots ในหน่วย USD โดยแปลงจาก THB ด้วยอัตรา USD/THB ใกล้วันรายงาน ข้อมูลไม่ได้ถูกแปลงเป็น transactions เพราะเอกสารไม่ได้ระบุรายการซื้อขายครบถ้วน Dashboard และกราฟแสดงมูลค่าเป็น USD; การดึงราคา live ของหุ้นไทยจะแปลงเป็น USD ก่อนบันทึก snapshot
 
 ## ข้อจำกัดและแนวทางต่อยอด
 
-ข้อมูลราคาจาก Yahoo Finance อาจล่าช้าหรือไม่มีสำหรับบาง ticker ระบบจึงใช้ cache/manual data และให้ `REVIEW` เมื่อข้อมูลตลาดไม่พอ ปัจจุบัน transactions ใช้ USD และยังไม่มีช่องเก็บ currency แยก หากสลิปเป็นสกุลอื่นให้แปลงราคาและค่าธรรมเนียมเป็น USD ก่อนบันทึก ส่วน historical snapshots จาก statement เป็น THB และไม่ถูกแปลงอัตโนมัติ
+ข้อมูลราคาจาก Yahoo Finance อาจล่าช้าหรือไม่มีสำหรับบาง ticker ระบบจึงใช้ cache/manual data และให้ `REVIEW` เมื่อข้อมูลตลาดไม่พอ ปัจจุบัน transactions ใช้ USD และยังไม่มีช่องเก็บ currency แยก หากสลิปเป็นสกุลอื่นให้แปลงราคาและค่าธรรมเนียมเป็น USD ก่อนบันทึก ราคาหุ้นไทยจากการดึง live จะถูกแปลงเป็น USD ด้วยอัตราปัจจุบัน ส่วนค่าธุรกรรมเดิมที่บันทึกก่อนหน้านี้ไม่สามารถตรวจสกุลเงินย้อนหลังได้อย่างแน่นอน
 
 การนำเข้า/ส่งออก transaction และการรองรับหลายสกุลเงินเป็นแนวทางต่อยอดที่ยังไม่มีในระบบ รายละเอียดการประเมินฟีเจอร์อยู่ใน [บันทึกเปรียบเทียบ Getquin Portfolio Exporter](docs/getquin-exporter-comparison.md)
 

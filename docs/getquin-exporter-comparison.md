@@ -7,6 +7,8 @@
 
 ควรหยิบแนวคิด **นำเข้า/ส่งออก transaction แบบมี mapping, ตรวจข้อมูลก่อนเขียน และทำงานในเครื่อง** มาใช้ ไม่ควรยก exporter มาแทนระบบพอร์ต: README ของ exporter ระบุว่ามันแปลง Getquin JSON ไปเป็น CSV/XLSX ส่วนโปรเจกต์นี้มี portfolio engine, Smart-DCA v2 และ portfolio snapshots อยู่แล้ว ([exporter README](https://github.com/aybruhm/getquin-portfolio-exporter/blob/af403b9fb90d460dc9a12b801fce01502c787d29/README.md), [README ของโปรเจกต์](../README.md)).
 
+สถานะโปรเจกต์ปัจจุบันยังไม่มี transaction import/export แต่เพิ่มการ export Smart-DCA training samples แบบ JSONL สำหรับ owner แล้ว ข้อมูลนี้เป็น input/recommendation ของระบบ ไม่ใช่ transaction history หรือ outcome การลงทุน จึงยังไม่ทดแทนความต้องการ export ธุรกรรมเพื่อ backup หรือย้ายไป platform อื่น
+
 ## Exporter ทำอะไรได้
 
 | ความสามารถที่ยืนยันจาก source | รายละเอียด |
